@@ -15,22 +15,24 @@
  * </p>
  */
 
-package transaction.constants;
+package transaction.exception;
 
 /**
- * 事务日志存储类型.
- * 
- * @author zhangliang
+ * 事务补偿抛出的异常类.
+ *
+ * @author caohao
  */
-public enum TransactionLogDataSourceType {
+public class TransactionCompensationException extends RuntimeException {
     
-    /**
-     *  内存存储.
-     */
-    MEMORY, 
+    public TransactionCompensationException(final String errorMessage, final Object... args) {
+        super(String.format(errorMessage, args));
+    }
     
-    /**
-     * 数据库存储.
-     */
-    RDB
+    public TransactionCompensationException(final String message, final Exception cause) {
+        super(message, cause);
+    }
+    
+    public TransactionCompensationException(final Exception cause) {
+        super(cause);
+    }
 }

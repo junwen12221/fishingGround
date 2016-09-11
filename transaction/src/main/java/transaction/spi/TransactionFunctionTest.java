@@ -1,16 +1,13 @@
 package transaction.spi;
 
-import transaction.exception.TransactionCompensationException;
-import transaction.exception.TransactionPrepareException;
+import transaction.exception.TransactionException;
 
-import java.util.Map;
-import java.util.function.Function;
+import java.io.Serializable;
 
 /**
  * Created by karak on 16-9-10.
  */
 @FunctionalInterface
-public interface TransactionFunction<T> {
-      public   T accept(Map<String, Object> t)throws TransactionPrepareException;
-
+public interface TransactionFunctionTest<T extends Serializable> extends Serializable {
+    public T accept() throws TransactionException;
 }

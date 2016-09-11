@@ -15,7 +15,7 @@
  * </p>
  */
 
-package com.dangdang.ddframe.rdb.transaction.soft.constants;
+package transaction.constants;
 
 /**
  * 柔性事务类型.
@@ -44,5 +44,6 @@ public enum SoftTransactionType {
      * 业务方提供cancel方法.
      * </p>
      */
-    TryConfirmCancel
+    TryConfirmCancel,
+
 }

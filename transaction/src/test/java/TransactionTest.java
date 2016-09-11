@@ -1,48 +1,62 @@
-import org.apache.commons.collections.MapUtils;
-import org.apache.commons.collections.functors.TransformerClosure;
-import transaction.spi.TransactionClosureParm;
-import transaction.spi.TransactionComposite;
-import transaction.spi.TransactionHandle;
-import transaction.spi.TransactionMapParm;
+import transaction.exception.TransactionException;
+import transaction.spi.*;
+import transaction.spi.entries.BEDTransaction;
+import transaction.spi.entries.MessageTransaction;
+import transaction.spi.entries.TccTransaction;
+import transaction.spi.entries.Transaction;
 
 import java.util.HashMap;
-import java.util.Map;
+import java.util.function.Supplier;
+
+import static java.lang.System.out;
 
 /**
  * Created by karak on 16-9-10.
  */
 public class TransactionTest {
-
     public static void main(String[] args) {
-        TransactionClosureParm test1= TransactionHandle.build("test", "bed", () -> {
-            System.out.println("=>TransactionClosureParm prepare");
-            return Void.TYPE;
-        }, "arg1", "arg2", "arg3")
-                .setSubmit(() -> {
-            System.out.println("=>TransactionClosureParm submit");
-        }).setCancel(() -> {
-            System.out.println("=>TransactionClosureParm cancel");
-        }).setCheckLocalTransactionStateListener((id) -> {
-            System.out.println("=>TransactionClosureParm listen");
-            return TransactionComposite.SUBMIT;
-        });
-        test1.prepareAll();
-        test1.submit();
-///////////////////////////////////////////////////////////事务名,事务类型,事务参数
-        TransactionMapParm test2=  TransactionHandle.build("test", "bed", (map) -> {
-            System.out.println("=>TransactionMapParm prepare");
-            return Void.TYPE;
+
+        TransactionOperate operate = new TransactionOperate();
+
+        TransactionFactory transactionFactory = new TransactionFactory(operate);
+
+        Transaction base = transactionFactory.createTransaction();
+        base.setPrepare((map) -> {
+            System.out.println("=>base prepare");
+            return "ok";//事务的返回值
         }).setSubmit((map) -> {
-            System.out.println("=>TransactionMapParm submit");
-        }).setCancel((map) -> {
-            System.out.println("=>TransactionMapParm cancel");
-        }).setCheckLocalTransactionStateListener((id) -> {//事务id
-            System.out.println("=>TransactionMapParm listen");
-            return TransactionComposite.SUBMIT;
+            System.out.println("=>base submit");
         });
-        test2.apply(MapUtils.EMPTY_MAP);//使用map传参
-        test2.prepareAll();
-        test2.submit();
+
+        TccTransaction tcc = transactionFactory.createTccTransaction();
+        tcc.setPrepare((map) -> {
+            System.out.println("=>base prepare");
+            return "ok";//事务的返回值
+        }).setSubmit((map) -> {
+            System.out.println("=>base submit");
+        });
+
+        MessageTransaction asyn = transactionFactory.createMessageTransaction();
+        asyn.setPrepare((map) -> {
+            System.out.println("=>base prepare");
+            return "ok";//事务的返回值
+        }).setSubmit((map) -> {
+            System.out.println("=>base submit");
+        }).setCheckLocalListener((id) -> {
+            return TransactionComposite.SUBMIT;
+        }, 10).setCheckRemoteListener((id) -> {
+            return TransactionComposite.SUBMIT;
+        }, 10);
+
+
+        BEDTransaction bed = transactionFactory.createBEDTransaction();
+        bed.setPrepare((map) -> {
+            System.out.println("=>base prepare");
+            return "ok";//事务的返回值
+        }).setSubmit((map) -> {
+            System.out.println("=>base submit");
+        }).setTime(10);
+
 
     }
 

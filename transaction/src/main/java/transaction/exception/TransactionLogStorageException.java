@@ -15,22 +15,24 @@
  * </p>
  */
 
-package transaction.constants;
+package transaction.exception;
 
 /**
- * 事务日志存储类型.
- * 
- * @author zhangliang
+ * 事务日志存储抛出的异常类.
+ *
+ * @author caohao
  */
-public enum TransactionLogDataSourceType {
+public class TransactionLogStorageException extends RuntimeException {
     
-    /**
-     *  内存存储.
-     */
-    MEMORY, 
+    public TransactionLogStorageException(final String errorMessage, final Object... args) {
+        super(String.format(errorMessage, args));
+    }
     
-    /**
-     * 数据库存储.
-     */
-    RDB
+    public TransactionLogStorageException(final String message, final Exception cause) {
+        super(message, cause);
+    }
+    
+    public TransactionLogStorageException(final Exception cause) {
+        super(cause);
+    }
 }
