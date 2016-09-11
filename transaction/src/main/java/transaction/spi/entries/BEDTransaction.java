@@ -2,11 +2,10 @@ package transaction.spi.entries;
 
 import transaction.exception.TransactionCompensationException;
 import transaction.spi.TransactionOperate;
-import transaction.spi.function.TransactionCancel;
 import transaction.spi.function.TransactionFunction;
 import transaction.spi.function.TransactionSubmit;
 
-import java.util.function.Function;
+import java.util.Map;
 
 /**
  * Created by karak on 16-9-11.
@@ -39,5 +38,14 @@ public class BEDTransaction extends Transaction {
 
     public void setTime(long cycle) {
         this.cycle = cycle;
+    }
+    @Override
+    public Object apply(Map map) {
+        return operate.visit(this,map);
+    }
+
+    @Override
+    public boolean deploy() {
+        return true;
     }
 }

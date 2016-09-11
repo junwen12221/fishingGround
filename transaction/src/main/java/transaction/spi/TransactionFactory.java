@@ -33,7 +33,7 @@ public class TransactionFactory {
         return new BEDTransaction(operate);
     }
     public TransactionList createTransactionList(TransactionComposite...list) {
-        return new TransactionList(list);
+        return new TransactionList(operate,list);
     }
     public OnePCTransaction createOnePCTransaction(TransactionComposite...list) {
         return null;

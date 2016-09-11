@@ -1,6 +1,6 @@
 package transaction.spi.function;
 
-import transaction.exception.TransactionCompensationException;
+import transaction.exception.TransactionSubmitException;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -10,5 +10,5 @@ import java.util.Map;
  */
 @FunctionalInterface
 public interface TransactionSubmit extends Serializable{
-    void accept(Map<String,Object> t)throws TransactionCompensationException;
+    void accept(Map<String,Object> t)throws TransactionSubmitException;
 }

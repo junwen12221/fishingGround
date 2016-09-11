@@ -1,14 +1,14 @@
 package transaction.spi.entries;
 
 import transaction.spi.TransactionComposite;
-import transaction.spi.TransactionFactory;
 import transaction.spi.TransactionOperate;
+import transaction.spi.function.TransactionCancel;
 import transaction.spi.function.TransactionFunction;
 import transaction.spi.function.TransactionSubmit;
 
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by karak on 16-9-11.
@@ -19,24 +19,24 @@ public class OnePCTransaction extends TransactionComposite {
     public OnePCTransaction(TransactionOperate operate){
      this.operate=operate;
     }
-    protected List<TransactionComposite> prepare;
-    protected List<TransactionComposite> submit;
-    protected List<TransactionComposite> cancel;
+    protected List<TransactionFunction> prepare;
+    protected List<TransactionSubmit> submit;
+    protected List<TransactionCancel> cancel;
     List<MessageTransaction> messageTransactionList;
 
     public TransactionOperate getOperate() {
         return operate;
     }
 
-    public List<TransactionComposite> getPrepare() {
+    public List<TransactionFunction> getPrepare() {
         return prepare;
     }
 
-    public List<TransactionComposite> getSubmit() {
+    public List<TransactionSubmit> getSubmit() {
         return submit;
     }
 
-    public List<TransactionComposite> getCancel() {
+    public List<TransactionCancel> getCancel() {
         return cancel;
     }
 
@@ -50,7 +50,16 @@ public class OnePCTransaction extends TransactionComposite {
     }
 
     @Override
-    public Iterator<TransactionComposite> iterator() {
-        return submit.iterator();
+    public Iterator<?> iterator() {
+        return null;
+    }
+    @Override
+    public Object apply(Map map) {
+        return operate.visit(this,map);
+    }
+    @Override
+    public boolean deploy() {
+        messageTransactionList.forEach(it->it.deploy());
+        return true;
     }
 }

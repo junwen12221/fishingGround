@@ -1,10 +1,11 @@
 package transaction.spi.entries;
 
 import transaction.exception.TransactionCompensationException;
-import transaction.spi.function.TransactionFunction;
 import transaction.spi.TransactionOperate;
+import transaction.spi.function.TransactionFunction;
 import transaction.spi.function.TransactionSubmit;
 
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -18,7 +19,7 @@ public class MessageTransaction extends Transaction {
     public MessageTransaction(TransactionOperate factory){
        super(factory);
     }
-    //对外对下游提供查询,部署在下游,对一定时间的prepare消息的数据检验
+    //本地对外发布接口,对下游提供接口,查询事务状态,这个函数主动访问这个接口,这个函数部署在下游,对一定时间的prepare消息的数据检验,检查提交了没有
     public MessageTransaction setCheckLocalListener(Function<String, String> listener, long cycle) throws TransactionCompensationException {
         this.localListener = listener;
         this.localcycle=cycle;
@@ -34,9 +35,16 @@ public class MessageTransaction extends Transaction {
         this.prepare = prepare;
         return this;
     }
-
     public MessageTransaction setSubmit(TransactionSubmit submit) throws TransactionCompensationException {
         this.submit = submit;
         return this;
+    }
+    @Override
+    public Object apply(Map map) {
+        return operate.visit(this,map);
+    }
+    @Override
+    public boolean deploy() {
+        return true;
     }
 }

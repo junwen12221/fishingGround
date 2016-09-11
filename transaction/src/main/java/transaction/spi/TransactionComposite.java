@@ -5,7 +5,8 @@ import transaction.spi.function.TransactionFunction;
 import transaction.spi.function.TransactionSubmit;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Created by karak on 16-9-9.
@@ -30,7 +31,9 @@ public abstract class TransactionComposite<T extends Serializable> implements Se
 
     public abstract Iterator<TransactionComposite> iterator();
 
+    public abstract Object apply(Map<String, Object> map);
 
+    public abstract boolean deploy();
 
 
 

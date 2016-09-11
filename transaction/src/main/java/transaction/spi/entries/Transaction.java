@@ -3,15 +3,17 @@ package transaction.spi.entries;
 import org.apache.commons.collections.IteratorUtils;
 import transaction.exception.TransactionCompensationException;
 import transaction.spi.TransactionComposite;
-import transaction.spi.function.TransactionFunction;
 import transaction.spi.TransactionOperate;
+import transaction.spi.function.TransactionFunction;
 import transaction.spi.function.TransactionSubmit;
 
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Created by karak on 16-9-11.
  */
+
 public class Transaction extends TransactionComposite {
     TransactionFunction prepare;
     TransactionSubmit submit;
@@ -47,5 +49,23 @@ public class Transaction extends TransactionComposite {
     @Override
     public Iterator<TransactionComposite> iterator() {
         return IteratorUtils.EMPTY_ITERATOR;
+    }
+
+    @Override
+    public Object apply(Map map) {
+        return operate.visit(this,map);
+    }
+
+    @Override
+    public boolean deploy() {
+        return true;
+    }
+
+    public TransactionFunction getPrepare() {
+        return prepare;
+    }
+
+    public TransactionSubmit getSubmit() {
+        return submit;
     }
 }

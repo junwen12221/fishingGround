@@ -1,12 +1,5 @@
 package transaction.spi;
 
-import transaction.spi.function.TransactionCancel;
-import transaction.spi.function.TransactionFunction;
-import transaction.spi.function.TransactionSubmit;
-
-import java.io.Serializable;
-import java.util.*;
-
 /**
  * Created by karak on 16-9-10.
  */
