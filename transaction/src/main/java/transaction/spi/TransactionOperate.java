@@ -8,11 +8,16 @@ import java.util.Map;
  * Created by karak on 16-9-11.
  */
 public interface TransactionOperate {
-    public Object visit(Transaction transaction,Map map);
-    public Object visit(TccTransaction transaction,Map map);
-    public Object visit(OnePCTransaction transaction,Map map);
-    public Object visit(MessageTransaction transaction,Map map);
-    public Object visit(BEDTransaction transaction,Map map);
-    public Object visit(TransactionList transaction,Map map);
+    Object visit(Transaction transaction, Map map);
+
+    Object visit(TccTransaction transaction, Map map);
+
+    Object visit(OnePCTransaction transaction, Map map);
+
+    Object visit(MessageTransaction transaction, Map map);
+
+    Object visit(BEDTransaction transaction, Map map);
+
+    Object visit(TccTransactionList transaction, Map map);
 
 }

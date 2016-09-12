@@ -8,7 +8,7 @@ public class TransactionHandle {
 
 /*
     public static TransactionComposite ofList(TransactionComposite... fun) {
-        return new TransactionList(fun);
+        return new TccTransactionList(fun);
     }
 
    private static void  traverse(TransactionComposite fun, List<TransactionFunction<?>> prepareList, List<TransactionSubmit> submitList, List<TransactionCancel> cancelList){

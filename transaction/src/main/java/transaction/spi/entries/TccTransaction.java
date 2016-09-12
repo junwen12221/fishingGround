@@ -6,13 +6,12 @@ import transaction.spi.function.TransactionCancel;
 import transaction.spi.function.TransactionFunction;
 import transaction.spi.function.TransactionSubmit;
 
-import java.io.Serializable;
 import java.util.Map;
 
 /**
  * Created by karak on 16-9-11.
  */
-public class TccTransaction<T extends Serializable> extends Transaction {
+public class TccTransaction extends Transaction {
 
     TransactionCancel cancel;
 
@@ -25,24 +24,21 @@ public class TccTransaction<T extends Serializable> extends Transaction {
         return super.count();
     }
 
-    public TccTransaction setCancel(TransactionCancel cancel) throws TransactionCompensationException {
-        this.cancel = cancel;
-        return this;
-    }
-
     public TccTransaction setPrepare(TransactionFunction prepare) throws TransactionCompensationException {
         this.prepare = prepare;
         return this;
     }
 
-    public TccTransaction<T> setSubmit(TransactionSubmit submit) throws TransactionCompensationException {
+    public TccTransaction setSubmit(TransactionSubmit submit) throws TransactionCompensationException {
         this.submit = submit;
         return this;
     }
+
     @Override
     public Object apply(Map map) {
         return operate.visit(this,map);
     }
+
     @Override
     public boolean deploy() {
         return true;
@@ -50,5 +46,10 @@ public class TccTransaction<T extends Serializable> extends Transaction {
 
     public TransactionCancel getCancel() {
         return cancel;
+    }
+
+    public TccTransaction setCancel(TransactionCancel cancel) throws TransactionCompensationException {
+        this.cancel = cancel;
+        return this;
     }
 }

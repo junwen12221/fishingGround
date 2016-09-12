@@ -6,15 +6,19 @@ import transaction.exception.TransactionSubmitException;
 import transaction.spi.TransactionComposite;
 import transaction.spi.TransactionOperate;
 import transaction.spi.entries.*;
+import transaction.spi.function.TransactionCancel;
+import transaction.spi.function.TransactionFunction;
+import transaction.spi.function.TransactionSubmit;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Created by karak on 16-9-11.
  */
 public class TransactionOperateImpl implements TransactionOperate {
-    String type_Transaction = Transaction.class.getSimpleName();
-
     @Override
     public Object visit(Transaction transaction, Map map) {
         Object result = null;
@@ -26,12 +30,11 @@ public class TransactionOperateImpl implements TransactionOperate {
         try {
             transaction.getSubmit().accept(map);
         } catch (Exception e) {
+            result = null;
             throw new TransactionSubmitException();
         }
         return result;
     }
-
-    static final String type_TccTransaction = TccTransaction.class.getSimpleName();
 
     @Override
     public Object visit(TccTransaction transaction, Map map) {
@@ -44,6 +47,7 @@ public class TransactionOperateImpl implements TransactionOperate {
         try {
             transaction.getSubmit().accept(map);
         } catch (Exception e) {
+            result = null;
             e.printStackTrace();
             try {
                 transaction.getCancel().accept(map);
@@ -54,83 +58,67 @@ public class TransactionOperateImpl implements TransactionOperate {
         return result;
     }
 
-    String type_OnePCTransaction = OnePCTransaction.class.getSimpleName();
-
     @Override
     public Object visit(OnePCTransaction transaction, Map map) {
-        for(Transaction it:transaction)
-        return null;
+        Object result = null;
+        for (TransactionFunction it : transaction.getPrepare()) {
+            result = it.accept(map);
+        }
+        int i = 0;
+        for (TransactionSubmit it : transaction.getSubmit()) {
+            try {
+                it.accept(map);
+                ++i;
+            } catch (Exception e) {
+                result = null;
+                e.printStackTrace();
+                break;
+            }
+        }
+        if (transaction.getSubmit().size() == i) {
+            return result;
+        }
+        List<TransactionCancel> cancelList = transaction.getCancel();
+        for (int j = i; j > -1; --j) {
+            try {
+                cancelList.get(j).accept(map);
+            } catch (Exception e) {
+                throw new TransactionCancelException();
+            }
+        }
+        return result;
     }
-
-    String type_MessageTransaction = MessageTransaction.class.getSimpleName();
 
     @Override
     public Object visit(MessageTransaction transaction, Map map) {
         return visit((Transaction) transaction, map);
     }
-
-    String type_BEDTransaction = BEDTransaction.class.getSimpleName();
-
     @Override
     public Object visit(BEDTransaction transaction, Map map) {
         return visit((Transaction) transaction, map);
     }
 
-    String type_TransactionList = TransactionList.class.getSimpleName();
 
     @Override
-    public Object visit(TransactionList transactionList, Map map) {
+    public Object visit(TccTransactionList tccTransactionList, Map map) {
+        Deque<TccTransaction> stack = (Deque<TccTransaction>) map.get(TransactionComposite.TX_STACK);
+        if (stack == null) {
+            stack = new ArrayDeque<>();
+            map.put(TransactionComposite.TX_STACK, stack);
+        }
         Object result = null;
-        int i = 0;
-        int size = transactionList.count();
-        for (Object it : transactionList) {
-            String type = it.getClass().getSimpleName();
-            switch (type) {
-                case "Transaction": {
-                    Transaction action = (Transaction) it;
-                    try {
-                        action.getPrepare().accept(map);
-                    }catch (Exception e){
-                        throw new TransactionPrepareException();
-                    }
+        for (Object it : tccTransactionList) {
+            if (it instanceof TccTransaction) {
+                TccTransaction action = (TccTransaction) it;
+                result = visit(action, map);
+                if (result == null) {
                     break;
                 }
-                case "TccTransaction": {
-                    TccTransaction action = (TccTransaction) it;
-                    try {
-                        action.getPrepare().accept(map);
-                    }catch (Exception e){
-                        throw new TransactionPrepareException();
-                    }
-                    break;
-                }
-                case "OnePCTransaction": {
-                    OnePCTransaction action = (OnePCTransaction) it;
-                    try {
-
-                    }catch (Exception e){
-                        throw new TransactionPrepareException();
-                    }
-                    break;
-                }
-                case "MessageTransaction": {
-                    Transaction action = (Transaction) it;
-                    break;
-                }
-                case "BEDTransaction": {
-                    BEDTransaction action = (BEDTransaction) it;
-                    break;
-                }
-                case "TransactionList": {
-                    TransactionList action = (TransactionList) it;
-                    break;
-                }
-                default: {
-                    break;
-                }
+                stack.push(action);
+            } else {
+                TccTransactionList action = (TccTransactionList) it;
+                result = visit(action, map);
             }
-
-            ++i;
         }
         return result;
     }

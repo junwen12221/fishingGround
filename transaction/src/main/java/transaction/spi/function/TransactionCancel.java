@@ -1,6 +1,6 @@
 package transaction.spi.function;
 
-import transaction.exception.TransactionException;
+import transaction.exception.TransactionCompensationException;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -10,5 +10,5 @@ import java.util.Map;
  */
 @FunctionalInterface
 public interface TransactionCancel extends Serializable {
-      public   void accept(Map<String, Object> t)throws TransactionException;
+      void accept(Map<String, Object> t) throws TransactionCompensationException;
 }

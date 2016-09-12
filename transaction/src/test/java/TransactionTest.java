@@ -1,10 +1,12 @@
 import org.apache.commons.collections.MapUtils;
-import transaction.exception.TransactionSubmitException;
 import transaction.impl.TransactionOperateImpl;
 import transaction.spi.TransactionComposite;
 import transaction.spi.TransactionFactory;
 import transaction.spi.TransactionOperate;
 import transaction.spi.entries.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Created by karak on 16-9-10.
@@ -32,8 +34,8 @@ public class TransactionTest {
             return "ok";//事务的返回值
         }).setSubmit((map) -> {
             System.out.println("=>tcc submit");
-            throw new TransactionSubmitException();
-        }).setCancel((map)->{
+            //throw new TransactionSubmitException();
+        }).setCancel((map) -> {
             System.out.println("=>tcc cancel");
         });
         tcc.deploy();
@@ -64,13 +66,26 @@ public class TransactionTest {
         bed.deploy();
         bed.apply(MapUtils.EMPTY_MAP);
 
-        TransactionList transactionList=transactionFactory.createTransactionList(base,tcc,asyn,bed);
-        transactionList.deploy();
-        transactionList.apply(MapUtils.EMPTY_MAP);
+        TccTransaction tcc2 = transactionFactory.createTccTransaction();
+        tcc2.setPrepare((map) -> {
+            System.out.println("=>tcc2 prepare");
+            return "ok";//事务的返回值
+        }).setSubmit((map) -> {
+            System.out.println("=>tcc2 submit");
+        }).setCancel((map) -> {
+            System.out.println("=>tcc2 cancel");
+        });
+        tcc2.deploy();
+        tcc2.apply(new HashMap());
+        TccTransactionList tccTransactionList = transactionFactory.createTransactionList(tcc2, tcc);
+        Map map = new HashMap();
+        Object result = tccTransactionList.apply(map);
+        if (result == null) {
+            tccTransactionList.rollback(map);
+        }
+
 
     }
-
-    ;
 
 
 }

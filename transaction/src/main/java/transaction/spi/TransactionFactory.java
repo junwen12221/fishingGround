@@ -32,13 +32,15 @@ public class TransactionFactory {
     public BEDTransaction createBEDTransaction() {
         return new BEDTransaction(operate);
     }
-    public TransactionList createTransactionList(TransactionComposite...list) {
-        return new TransactionList(operate,list);
+
+    public <T> TccTransactionList createTransactionList(TccTransaction... list) {
+        return new TccTransactionList(operate, list);
     }
     public OnePCTransaction createOnePCTransaction(TransactionComposite...list) {
         return null;
     }
-    public OnePCTransaction createOnePCTransaction(TransactionList...list) {
+
+    public OnePCTransaction createOnePCTransaction(TccTransactionList... list) {
         return null;
     }
 }

@@ -15,14 +15,14 @@ import java.util.Map;
  */
 public class OnePCTransaction extends TransactionComposite {
 
+    protected List<TransactionFunction> prepare;
+    protected List<TransactionSubmit> submit;
+    protected List<TransactionCancel> cancel;
     TransactionOperate operate;
     public OnePCTransaction(TransactionOperate operate){
      this.operate=operate;
     }
-    protected List<TransactionFunction> prepare;
-    protected List<TransactionSubmit> submit;
-    protected List<TransactionCancel> cancel;
-    List<MessageTransaction> messageTransactionList;
+/*    List<MessageTransaction> messageTransactionList;*/
 
     public TransactionOperate getOperate() {
         return operate;
@@ -40,9 +40,9 @@ public class OnePCTransaction extends TransactionComposite {
         return cancel;
     }
 
-    public List<MessageTransaction> getMessageTransactionList() {
+/*    public List<MessageTransaction> getMessageTransactionList() {
         return messageTransactionList;
-    }
+    }*/
 
     @Override
     public int count() {
@@ -59,7 +59,7 @@ public class OnePCTransaction extends TransactionComposite {
     }
     @Override
     public boolean deploy() {
-        messageTransactionList.forEach(it->it.deploy());
+ /*       messageTransactionList.forEach(it->it.deploy());*/
         return true;
     }
 }
