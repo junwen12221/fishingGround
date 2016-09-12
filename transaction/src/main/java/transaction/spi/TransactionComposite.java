@@ -35,31 +35,4 @@ public abstract class TransactionComposite<T extends Serializable> implements Se
 
     public abstract boolean deploy();
 
-
-
-/*
-    public void prepare(Map<String, Object> args) throws TransactionPrepareException {
-            T result = null;
-            try {
-                result = this.prepare.accept(args);
-            } catch (Exception e) {
-                throw new TransactionPrepareException();
-            }
-            if (result == Void.TYPE) {
-                // args.put(TX_RESULT,Void.TYPE);
-            } else {
-                args.put(TX_RESULT, result);
-            }
-    }
-    public void submit(Map<String, Object> args,TransactionSubmit callbackFirst,TransactionSubmit callbackSecond) throws TransactionSubmitException {
-            try {
-                callbackFirst.accept(args);
-       *//*         Deque<TransactionComposite<T>> deque=    ((Deque<TransactionComposite<T>>) args.get(TransactionComposite.TX_STACK));
-                deque.push(this);*//*
-                this.submit.accept(args);
-                callbackSecond.accept(args);
-            } catch (Exception e) {
-                throw new TransactionSubmitException();
-            }
-    }*/
 }
