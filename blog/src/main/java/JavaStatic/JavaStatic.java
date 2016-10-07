@@ -2,7 +2,10 @@ package JavaStatic;
 
 import com.sun.tools.javac.util.Assert;
 import com.sun.tools.javac.util.List;
-import lombok.*;
+import lombok.NonNull;
+import lombok.SneakyThrows;
+import lombok.Value;
+import lombok.val;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -230,19 +233,20 @@ public final class JavaStatic {
         final int timeout = 10000;
         final String GHMDRendererUrl = "https://api.github.com/markdown/raw";
         final RequestConfig defaultRequestConfig = RequestConfig.custom().setConnectTimeout(timeout).setSocketTimeout(timeout).setConnectionRequestTimeout(timeout).build();
-        return (markdown) -> {
-            HttpPost httppost = new HttpPost(GHMDRendererUrl);
-            httppost.setConfig(defaultRequestConfig);
-            httppost.setHeader("Content-Type", "text/plain");
-            httppost.setHeader("Charset", "UTF-8");
+        return (String markdown) -> {
             try {
+                HttpPost httppost = new HttpPost(GHMDRendererUrl);
+                httppost.setConfig(defaultRequestConfig);
+                httppost.setHeader("Content-Type", "text/plain");
+                httppost.setHeader("Charset", "UTF-8");
                 httppost.setEntity(new StringEntity(markdown));
-                @Cleanup CloseableHttpClient httpclient = HttpClients.createDefault();
-                @Cleanup CloseableHttpResponse response = httpclient.execute(httppost);
-                return EntityUtils.toString(response.getEntity());
+                try (CloseableHttpClient httpclient = HttpClients.createDefault(); CloseableHttpResponse response = httpclient.execute(httppost)) {
+                    return EntityUtils.toString(response.getEntity());
+                }
             } catch (Exception e) {
-                return "";
+                e.printStackTrace();
             }
+            return "";
         };
     }
 
