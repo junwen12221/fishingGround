@@ -50,7 +50,7 @@ public final class JavaStatic {
             case 3:
                 return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), noEndSlash(args[2])};
             default:
-                out.println("Usage: java -jar scalatic-x.x.x <blogPath> ");
+                out.println("Usage: java -jar javaStatic-x.x.x <blogPath> ");
                 out.println("[<source> default 'source'] [<target> default 'target']");
                 return new String[0];
         }
