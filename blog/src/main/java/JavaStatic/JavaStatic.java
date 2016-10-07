@@ -41,19 +41,40 @@ import static java.util.Arrays.copyOf;
 public final class JavaStatic {
     final static String defaultSource = "source";
     final static String defaultTarget = "target";
-    final static Integer pageSize = 5;    // 每页显示的条数
+    final static Function<String[], String[]> validateArgs = (args) -> {
+        switch (args.length) {
+            case 1:
+                return new String[]{noEndSlash(args[0]), defaultSource, defaultTarget};
+            case 2:
+                return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), defaultTarget};
+            case 3:
+                return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), noEndSlash(args[2])};
+            default:
+                out.println("Usage: java -jar scalatic-x.x.x <blogPath> ");
+                out.println("[<source> default 'source'] [<target> default 'target']");
+                return new String[0];
+        }
+    };
+    static Integer pageSize = 5;    // 每页显示的条数
+    final static Function<String[], String[]> setPageSize = (args) -> {
+        int defaultCount = 10;
+        if (args.length > 0) {
+            pageSize = Integer.getInteger(args[args.length - 1].trim(), defaultCount);
+            return defaultCount == pageSize ? args : Arrays.copyOf(args, args.length - 1);
+        } else {
+            return args;
+        }
+    };
     static Function<String, String> markdownToHtml;
     final static Function<String[], String[]> markdownMode = (args) -> {
-        String[] pArgs;
         if (args.length > 0 && "-g".equals(args[args.length - 1].trim())) {
             markdownToHtml = markdownToHtmlByGithubBuilder();
-            pArgs = Arrays.copyOf(args, args.length - 1);
+            return Arrays.copyOf(args, args.length - 1);
         } else {
             final PegDownProcessor peg = new PegDownProcessor();
             markdownToHtml = (s) -> peg.markdownToHtml(s);
-            pArgs = args;
+            return args;
         }
-        return pArgs;
     };
 
     public static void main(String[] args1) throws Exception {
@@ -62,7 +83,7 @@ public final class JavaStatic {
     }
 
     public static void _main(String[] args) throws Exception {
-        val options = validateArgs(markdownMode.apply(args));
+        val options = markdownMode.andThen(setPageSize).andThen(validateArgs).apply(args);
         if (options.length == 0) return;
 
         val path = options[0];
@@ -171,21 +192,6 @@ public final class JavaStatic {
         val isFolder = Files.isDirectory(requiredFile);
         val folderOrFile = mustBeFolder ? "folder" : "file";
         Assert.check(Files.exists(requiredFile) && ((mustBeFolder) == isFolder), String.format("%s does not exist or is not a %s", pathToFile, folderOrFile));
-    }
-
-    static String[] validateArgs(String[] args) {
-        switch (args.length) {
-            case 1:
-                return new String[]{noEndSlash(args[0]), defaultSource, defaultTarget};
-            case 2:
-                return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), defaultTarget};
-            case 3:
-                return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), noEndSlash(args[2])};
-            default:
-                out.println("Usage: java -jar scalatic-x.x.x <blogPath> ");
-                out.println("[<source> default 'source'] [<target> default 'target']");
-                return new String[0];
-        }
     }
 
     static void moveFile(Path srcFile, Path destFile) throws Exception {
