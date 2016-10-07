@@ -45,7 +45,7 @@ public final class JavaStatic {
     static Function<String, String> markdownToHtml;
     final static Function<String[], String[]> markdownMode = (args) -> {
         String[] pArgs;
-        if ("-g".equals(args[args.length - 1].trim())) {
+        if (args.length > 0 && "-g".equals(args[args.length - 1].trim())) {
             markdownToHtml = markdownToHtmlByGithubBuilder();
             pArgs = Arrays.copyOf(args, args.length - 1);
         } else {
