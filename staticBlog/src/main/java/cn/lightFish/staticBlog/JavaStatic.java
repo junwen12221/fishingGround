@@ -51,32 +51,16 @@ public final class JavaStatic {
         }
     };
     static Integer pageSize = 5;    // 每页显示的条数
-    final static Function<String[], String[]> setPageSize = (args) -> {
-        int defaultCount = 10;
-        if (args.length > 0) {
-            pageSize = Integer.getInteger(args[args.length - 1].trim(), defaultCount);
-            return defaultCount == pageSize ? args : Arrays.copyOf(args, args.length - 1);
-        } else {
-            return args;
-        }
-    };
     static Function<String, String> markdownToHtml;
-    final static Function<String[], String[]> markdownMode = (args) -> {
-        if (args.length > 0 && "-l".equals(args[args.length - 1].trim())) {
-            final PegDownProcessor peg = new PegDownProcessor();
-            markdownToHtml = (s) -> peg.markdownToHtml(s);
-            return Arrays.copyOf(args, args.length - 1);
-        } else {
-            markdownToHtml = JavaStatic::markdownToHtmlByGithub;
-            return args;
-        }
-    };
     static Pattern pattern = Pattern.compile("\\$\\{([^}]+)}");
 
     public static void main(String[] args) throws Exception {
-        args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本", " -g"};
-        val options = markdownMode.andThen(setPageSize).andThen(validateArgs).apply(args);
+        args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本"};
+        Properties settings = new Properties();
+
+        val options = validateArgs.apply(args);
         if (options.length == 0) return;
+
 
         val path = options[0];
         val source = options[1];
@@ -87,6 +71,7 @@ public final class JavaStatic {
         validateFileNames(newPath);
         val sourcePath = String.format("%s/%s", path, source);
         requireFolder(sourcePath);
+
 
         val sourcePostsPath = sourcePath.concat("/posts");
         createFolderIfNotExists(sourcePostsPath);
@@ -104,8 +89,33 @@ public final class JavaStatic {
         val footer = stringFromFile(footerPath);
         val link = stringFromFile(linkPath);
 
-        renderNewPosts(newPath, sourcePostsPath, targetPath, header, String.format(footer, "\"\"", "\"\"", "\"\""));
-        generateIndex(sourcePostsPath, targetPath, header, link, footer);
+        try (InputStream in = Files.newInputStream(Paths.get(String.format("%s/setting.properties", sourcePath)))) {
+            settings.load(in);
+        }
+        val linkSeparator = settings.getProperty("linkseparator") == null ? "<br/>\n" : settings.getProperty("linkseparator");
+        pageSize = Integer.getInteger(settings.getProperty("pageSize"), 5);
+        val mode = settings.getProperty("markdownMode") == null ? "github" : settings.getProperty("markdownMode");
+        switch (mode) {
+            case "pegDownProcessor":
+                final PegDownProcessor peg = new PegDownProcessor();
+                markdownToHtml = (s) -> peg.markdownToHtml(s);
+                break;
+            case "github":
+                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
+                break;
+            default:
+                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
+                break;
+        }
+
+
+        Map<String, String> indexMap = new HashMap<>();
+        indexMap.put("currentPage", "\"\"");
+        indexMap.put("size", "\"\"");
+
+
+        renderNewPosts(newPath, sourcePostsPath, targetPath, header, simpleTemplate(footer, indexMap));
+        generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
         copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList("header.html", "footer.html")));
     }
 
@@ -143,7 +153,7 @@ public final class JavaStatic {
         return res.toString();
     }
 
-    static void generateIndex(String sourcePostsPath, String targetPath, String header, final String link, final String footer) throws Exception {
+    static void generateIndex(String sourcePostsPath, String targetPath, String header, final String link, final String linkSeparator, final String footer) throws Exception {
         final AtomicInteger counter = new AtomicInteger(1);
         val html = Files.list(Paths.get(sourcePostsPath))
                 .filter((p) -> !Files.isDirectory(p))
@@ -153,7 +163,7 @@ public final class JavaStatic {
                 .collect(Collectors.groupingBy((k) -> {
                     int no = counter.getAndIncrement();
                     return 1 <= no && no <= pageSize ? 1 : no % pageSize == 0 ? no / pageSize : no / pageSize + 1;
-                }, Collectors.joining("<br/>\n")));
+                }, Collectors.joining(linkSeparator)));
         final Integer pageCount = html.size();
         html.forEach((k, v) -> {
             String pageFooter = String.format(footer, k, pageCount, pageSize);
