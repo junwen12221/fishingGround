@@ -1,19 +1,16 @@
 package cn.lightFish.staticBlog;
 
-
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.Value;
 import lombok.val;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
 import org.pegdown.PegDownProcessor;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,17 +20,15 @@ import java.text.Format;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.lang.System.out;
 import static java.util.Arrays.copyOf;
-import static org.apache.http.util.Asserts.check;
 
 /**
  * Created by karak on 16-10-3.
@@ -67,22 +62,19 @@ public final class JavaStatic {
     };
     static Function<String, String> markdownToHtml;
     final static Function<String[], String[]> markdownMode = (args) -> {
-        if (args.length > 0 && "-g".equals(args[args.length - 1].trim())) {
-            markdownToHtml = markdownToHtmlByGithubBuilder();
-            return Arrays.copyOf(args, args.length - 1);
-        } else {
+        if (args.length > 0 && "-l".equals(args[args.length - 1].trim())) {
             final PegDownProcessor peg = new PegDownProcessor();
             markdownToHtml = (s) -> peg.markdownToHtml(s);
+            return Arrays.copyOf(args, args.length - 1);
+        } else {
+            markdownToHtml = JavaStatic::markdownToHtmlByGithub;
             return args;
         }
     };
+    static Pattern pattern = Pattern.compile("\\$\\{([^}]+)}");
 
-    public static void main(String[] args1) throws Exception {
-        String[] args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本", " -g"};
-        _main(args);
-    }
-
-    public static void _main(String[] args) throws Exception {
+    public static void main(String[] args) throws Exception {
+        args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本", " -g"};
         val options = markdownMode.andThen(setPageSize).andThen(validateArgs).apply(args);
         if (options.length == 0) return;
 
@@ -93,7 +85,6 @@ public final class JavaStatic {
         val newPath = String.format("%s/new", path);
         requireFolder(newPath);
         validateFileNames(newPath);
-
         val sourcePath = String.format("%s/%s", path, source);
         requireFolder(sourcePath);
 
@@ -106,12 +97,15 @@ public final class JavaStatic {
         requireFile(headerPath);
         val footerPath = String.format("%s/footer.html", sourcePath);
         requireFile(footerPath);
+        val linkPath = String.format("%s/link.html", sourcePath);
+        requireFile(linkPath);
 
         val header = stringFromFile(headerPath);
         val footer = stringFromFile(footerPath);
+        val link = stringFromFile(linkPath);
 
         renderNewPosts(newPath, sourcePostsPath, targetPath, header, String.format(footer, "\"\"", "\"\"", "\"\""));
-        generateIndex(sourcePostsPath, targetPath, header, footer);
+        generateIndex(sourcePostsPath, targetPath, header, link, footer);
         copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList("header.html", "footer.html")));
     }
 
@@ -149,13 +143,13 @@ public final class JavaStatic {
         return res.toString();
     }
 
-    static void generateIndex(String sourcePostsPath, String targetPath, String header, final String footer) throws Exception {
+    static void generateIndex(String sourcePostsPath, String targetPath, String header, final String link, final String footer) throws Exception {
         final AtomicInteger counter = new AtomicInteger(1);
         val html = Files.list(Paths.get(sourcePostsPath))
                 .filter((p) -> !Files.isDirectory(p))
                 .map((p) -> fileNameToPostSummary(p.getFileName().toString()))
                 .sorted((f, s) -> s.getDate().compareTo(f.getDate()))
-                .map(PostSummary::toLink)
+                .map((s) -> PostSummary.toLink(link, s))
                 .collect(Collectors.groupingBy((k) -> {
                     int no = counter.getAndIncrement();
                     return 1 <= no && no <= pageSize ? 1 : no % pageSize == 0 ? no / pageSize : no / pageSize + 1;
@@ -199,10 +193,14 @@ public final class JavaStatic {
         Files.copy(srcFile, destFile, StandardCopyOption.REPLACE_EXISTING);
     }
 
-    @SneakyThrows
-    static Path writeFile(String fileContent, String filePath) {
+    static void writeFile(String fileContent, String filePath) {
         out.println(String.format("Writing %s ...", filePath));
-        return Files.write(Paths.get(filePath), fileContent.getBytes(StandardCharsets.UTF_8));
+        try {
+            Files.write(Paths.get(filePath), fileContent.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            out.println("写入文件失败:" + filePath);
+            e.printStackTrace();
+        }
     }
 
     static void createFolderIfNotExists(String pathToFolder) throws Exception {
@@ -235,25 +233,56 @@ public final class JavaStatic {
         }
     }
 
-    static Function<String, String> markdownToHtmlByGithubBuilder() {
-        final int timeout = 10000;
-        final String GHMDRendererUrl = "https://api.github.com/markdown/raw";
-        final RequestConfig defaultRequestConfig = RequestConfig.custom().setConnectTimeout(timeout).setSocketTimeout(timeout).setConnectionRequestTimeout(timeout).build();
-        return (String markdown) -> {
-            try {
-                HttpPost httppost = new HttpPost(GHMDRendererUrl);
-                httppost.setConfig(defaultRequestConfig);
-                httppost.setHeader("Content-Type", "text/plain");
-                httppost.setHeader("Charset", "UTF-8");
-                httppost.setEntity(new StringEntity(markdown));
-                try (CloseableHttpClient httpclient = HttpClients.createDefault(); CloseableHttpResponse response = httpclient.execute(httppost)) {
-                    return EntityUtils.toString(response.getEntity());
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+    public static void check(boolean expression, String message) {
+        if (!expression) {
+            throw new IllegalStateException(message);
+        }
+    }
+
+    static String markdownToHtmlByGithub(String markdown) {
+        try {
+            final String url = "https://api.github.com/markdown/raw";
+            final int timeout = 10000;
+            final URL connectionBuilder = new URL(url);
+            URLConnection connection = connectionBuilder.openConnection();
+            connection.setConnectTimeout(timeout);
+            connection.setReadTimeout(timeout);
+            connection.setRequestProperty("Content-Type", "text/plain");
+            connection.setRequestProperty("Charset", "UTF-8");
+            connection.setDoOutput(true);
+            connection.connect();
+            try (OutputStream o = connection.getOutputStream(); OutputStreamWriter out = new OutputStreamWriter(o, StandardCharsets.UTF_8)) {
+                out.write(markdown);
             }
+            try (InputStream i = connection.getInputStream(); ByteArrayOutputStream result = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[1024];
+                int length;
+                while ((length = i.read(buffer)) != -1) {
+                    result.write(buffer, 0, length);
+                }
+                return result.toString("UTF-8");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(0);
             return "";
-        };
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static String simpleTemplate(String templateStr, Map<String, ?> data, String... defaultNullReplaceVals) {
+        if (templateStr == null) return null;
+        if (data == null) data = Collections.EMPTY_MAP;
+        String nullReplaceVal = defaultNullReplaceVals.length > 0 ? defaultNullReplaceVals[0] : "";
+        StringBuffer newValue = new StringBuffer(templateStr.length());
+        Matcher matcher = pattern.matcher(templateStr);
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            String r = data.get(key) != null ? data.get(key).toString() : nullReplaceVal;
+            matcher.appendReplacement(newValue, r.replaceAll("\\\\", "\\\\\\\\")); //这个是为了替换windows下的文件目录在java里用\\表示
+        }
+        matcher.appendTail(newValue);
+        return newValue.toString();
     }
 
     @Value
@@ -264,11 +293,19 @@ public final class JavaStatic {
         String title;
         LocalDateTime date;
 
-        public static String toLink(PostSummary ps) {
-            return String.format("%s<article>%n%s<header>%n", tabs(2), tabs(3)) +
-                    String.format("%s<a href='%s' class='blog-index-link'>%s</a>%n", tabs(4), ps.getUrl(), ps.getTitle()) +
-                    String.format("%s<time pubdate datetime='%s' class='blog-index-date'>", tabs(4), dfIso.format(ps.getDate())) +
-                    String.format("%s</time>%n%s</header>%n%s</article>", df.format(ps.getDate()), tabs(3), tabs(2));
+        public static String toLink(String tpl, PostSummary ps) {
+            Map<String, String> map = new HashMap<>();
+            map.put("tabs1", tabs(2));
+            map.put("tabs2", tabs(3));
+            map.put("tabs3", tabs(4));
+            map.put("tabs4", tabs(4));
+            map.put("tabs5", tabs(3));
+            map.put("tabs6", tabs(2));
+            map.put("ps.url", ps.getUrl());
+            map.put("ps.title", ps.getTitle());
+            map.put("datetime", dfIso.format(ps.getDate()));
+            map.put("time", df.format(ps.getDate()));
+            return simpleTemplate(tpl, map);
         }
     }
 }
