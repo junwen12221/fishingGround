@@ -5,10 +5,7 @@ import lombok.Value;
 import lombok.val;
 import org.pegdown.PegDownProcessor;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static java.lang.System.err;
 import static java.lang.System.out;
 import static java.util.Arrays.copyOf;
 
@@ -53,14 +51,35 @@ public final class JavaStatic {
     static Integer pageSize = 5;    // 每页显示的条数
     static Function<String, String> markdownToHtml;
     static Pattern pattern = Pattern.compile("\\$\\{([^}]+)}");
+    static String linkSeparator;
+
+    static void init(String sourcePath) throws IOException {
+        Properties settings = new Properties();
+        try (InputStream in = Files.newInputStream(Paths.get(String.format("%s/setting.properties", sourcePath)))) {
+            settings.load(in);
+        }
+        linkSeparator = settings.getProperty("linkseparator") == null ? "<br/>\n" : settings.getProperty("linkseparator");
+        pageSize = Integer.getInteger(settings.getProperty("pageSize"), 5);
+        val mode = settings.getProperty("markdownMode") == null ? "github" : settings.getProperty("markdownMode");
+        switch (mode) {
+            case "pegDownProcessor":
+                final PegDownProcessor peg = new PegDownProcessor();
+                markdownToHtml = (s) -> peg.markdownToHtml(s);
+                break;
+            case "github":
+                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
+                break;
+            default:
+                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
+                break;
+        }
+    }
 
     public static void main(String[] args) throws Exception {
         args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本"};
-        Properties settings = new Properties();
 
         val options = validateArgs.apply(args);
         if (options.length == 0) return;
-
 
         val path = options[0];
         val source = options[1];
@@ -71,7 +90,6 @@ public final class JavaStatic {
         validateFileNames(newPath);
         val sourcePath = String.format("%s/%s", path, source);
         requireFolder(sourcePath);
-
 
         val sourcePostsPath = sourcePath.concat("/posts");
         createFolderIfNotExists(sourcePostsPath);
@@ -89,31 +107,10 @@ public final class JavaStatic {
         val footer = stringFromFile(footerPath);
         val link = stringFromFile(linkPath);
 
-        try (InputStream in = Files.newInputStream(Paths.get(String.format("%s/setting.properties", sourcePath)))) {
-            settings.load(in);
-        }
-        val linkSeparator = settings.getProperty("linkseparator") == null ? "<br/>\n" : settings.getProperty("linkseparator");
-        pageSize = Integer.getInteger(settings.getProperty("pageSize"), 5);
-        val mode = settings.getProperty("markdownMode") == null ? "github" : settings.getProperty("markdownMode");
-        switch (mode) {
-            case "pegDownProcessor":
-                final PegDownProcessor peg = new PegDownProcessor();
-                markdownToHtml = (s) -> peg.markdownToHtml(s);
-                break;
-            case "github":
-                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
-                break;
-            default:
-                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
-                break;
-        }
-
-
+        init(sourcePath);
         Map<String, String> indexMap = new HashMap<>();
         indexMap.put("currentPage", "\"\"");
         indexMap.put("size", "\"\"");
-
-
         renderNewPosts(newPath, sourcePostsPath, targetPath, header, simpleTemplate(footer, indexMap));
         generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
         copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList("header.html", "footer.html")));
@@ -208,7 +205,7 @@ public final class JavaStatic {
         try {
             Files.write(Paths.get(filePath), fileContent.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
-            out.println("写入文件失败:" + filePath);
+            err.println("写入文件失败:" + filePath);
             e.printStackTrace();
         }
     }
