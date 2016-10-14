@@ -18,15 +18,14 @@ public class ReduceRT {
         final AtomicLong counter = new AtomicLong(0);
         Stream<String> result = stream.filter((s) -> {
             out.println(s);
-            return !s.startsWith("[Loaded com.sun") &&
-                    s.startsWith("[Loaded") &&
-                    !s.startsWith("[Opened ") &&
-                    !"".equals(s) && !s.startsWith("[Loaded java") &&
-                    !s.startsWith("[Loaded sun") &&
-                    !s.startsWith("[Loaded jdk") &&
-                    !s.contains("$$Lambda$");
+            return s.startsWith("[Loaded") &&
+                    !(s.startsWith("[Loaded com.sun") ||
+                            s.startsWith("[Loaded java") ||
+                            s.startsWith("[Loaded jdk") ||
+                            s.startsWith("[Loaded sun") ||
+                            s.contains("$$Lambda$"));
         })
-                .map(s -> "/" + s.substring("[Loaded ".length(), s.indexOf(" from")).trim().replaceAll("\\.", "/") + ".class")
+                .map(s -> "/" + s.substring("[Loaded ".length(), s.indexOf(" from")).replaceAll("\\.", "/").trim() + ".class")
                 .distinct();
         result.forEach((n) -> {
             Path c = jar.getPath(n);
@@ -72,21 +71,28 @@ public class ReduceRT {
     public static void _main(String[] args) throws Exception {
         String jarPath = args[0].replaceAll("\\\\", "/");
         String jarArgs = args[1].replaceAll("\\\\", "/");
+        //临时存放抽取需要的class的目录
         Path workspace = Files.createTempDirectory(Paths.get(jarPath.substring(0, jarPath.lastIndexOf("/"))), "simplifyjre");
         out.println(workspace);
-        String cmd = "java -jar -verbose:class  " + jarPath + jarArgs;
-        out.println(cmd);
+        //构造运行jar 分析运行依赖的的命令
+        String cmdString = "java -jar -verbose:class  " + jarPath + jarArgs;
+        out.println(cmdString);
         String odir = workspace.toString();
         File file = Paths.get(odir).toFile();
         FileUtils.deleteDirectory(file);
         if (!file.mkdirs()) throw new Exception("创建文件夹:" + file.toString() + "失败");
+        //利用zip文件系统读取class
         FileSystem jar = FileSystems.newFileSystem(Paths.get(jarPath), null);
-        cmd(cmd, s -> dealClass(s, jar, odir));
+        //从jar包抽取需要的class并复制到odir
+        cmd(cmdString, s -> dealClass(s, jar, odir));
         Files.createDirectory(Paths.get(odir + "/META-INF"));
+        //复制MANIFEST.MF
         Files.copy(jar.getPath("/META-INF/MANIFEST.MF"), Paths.get(odir + "/META-INF/MANIFEST.MF"));
         String MANIFEST = odir + "/META-INF/MANIFEST.MF";
+        //构造新的jar包执行命令
         String buildJar = "jar cvfmn " + jarPath.substring(0, jarPath.lastIndexOf(".") - 1) + "-new.jar " + MANIFEST + " -C " + odir + "/ .";
         out.println(buildJar);
+        //运行构造jar包命令
         cmd(buildJar, (s) -> s.forEach(System.out::println));
     }
 }
