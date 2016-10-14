@@ -14,10 +14,19 @@ import java.util.stream.Stream;
 import static java.lang.System.out;
 
 public class ReduceRT {
+    /**
+     * http://mycodetub.logdown.com/posts/211965
+     * 根据此文写的
+     *
+     * @param stream
+     * @param jar
+     * @param odir
+     */
     public static void dealClass(Stream<String> stream, FileSystem jar, String odir) {
         final AtomicLong counter = new AtomicLong(0);
         Stream<String> result = stream.filter((s) -> {
             out.println(s);
+            //过滤 JDK内置包,这里没写完整
             return s.startsWith("[Loaded") &&
                     !(s.startsWith("[Loaded com.sun") ||
                             s.startsWith("[Loaded java") ||
@@ -55,7 +64,7 @@ public class ReduceRT {
 
     static void cmd(String cmd, Consumer<Stream> fun) throws Exception {
         Process process = Runtime.getRuntime().exec(cmd);
-        @Cleanup InputStream in = process.getInputStream();
+        @Cleanup InputStream in = process.getInputStream();//这个Cleanup是lombok的注解,没有lombok自己用The try-with-resources替代
         @Cleanup InputStreamReader ir = new InputStreamReader(in, StandardCharsets.UTF_8);
         @Cleanup LineNumberReader input = new LineNumberReader(ir);
         fun.accept(input.lines());
@@ -63,8 +72,8 @@ public class ReduceRT {
     }
 
     public static void main(String[] args) throws Exception {
-        String jarPath = "L:\\\\MY\\\\staticBlog\\\\target\\\\staticBlog-0.1-SNAPSHOT.jar";
-        String jarArgs = " \"D:\\Users\\karakapi\\zhuomian\\static - 副本\"";
+        String jarPath = "L:\\\\MY\\\\staticBlog\\\\target\\\\staticBlog-0.1-SNAPSHOT.jar";//需要压缩的jar
+        String jarArgs = " \"D:\\Users\\karakapi\\zhuomian\\static - 副本\"";//运行这个jar的额外命令
         _main(new String[]{jarPath, jarArgs});
     }
 
