@@ -53,9 +53,9 @@ public final class JavaStatic {
     static Pattern pattern = Pattern.compile("\\$\\{([^}]+)}");
     static String linkSeparator;
 
-    static void init(String sourcePath) throws IOException {
+    static void init(Path sourcePath) throws IOException {
         Properties settings = new Properties();
-        try (InputStream in = Files.newInputStream(Paths.get(String.format("%s/setting.properties", sourcePath)))) {
+        try (InputStream in = Files.newInputStream(sourcePath.resolve("setting.properties"))) {
             settings.load(in);
         }
         linkSeparator = settings.getProperty("linkseparator") == null ? "<br/>\n" : settings.getProperty("linkseparator");
@@ -78,7 +78,7 @@ public final class JavaStatic {
     }
 
     public static void main(String[] args) throws Exception {
-        //args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本"};
+        args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本"};
 
         val options = validateArgs.apply(args);
         if (options.length == 0) return;
@@ -87,41 +87,59 @@ public final class JavaStatic {
         val source = options[1];
         val target = options[2];
 
-        val newPath = String.format("%s/new", path);
+        val newPath = Paths.get(path, "new");
         requireFolder(newPath);
         validateFileNames(newPath);
-        val sourcePath = String.format("%s/%s", path, source);
+        val sourcePath = Paths.get(path, source);
         requireFolder(sourcePath);
 
-        val sourcePostsPath = sourcePath.concat("/posts");
+        val sourcePostsPath = sourcePath.resolve("posts");
         createFolderIfNotExists(sourcePostsPath);
-        val targetPath = String.format("%s/%s", path, target);
+        val targetPath = Paths.get(path, target);
         createFolderIfNotExists(targetPath);
 
-        val headerPath = String.format("%s/header.html", sourcePath);
+        val headerPath = sourcePath.resolve("header.html");
         requireFile(headerPath);
-        val footerPath = String.format("%s/footer.html", sourcePath);
+        val footerPath = sourcePath.resolve("footer.html");
         requireFile(footerPath);
-        val linkPath = String.format("%s/link.html", sourcePath);
+        val linkPath = sourcePath.resolve("link.html");
         requireFile(linkPath);
 
         val header = stringFromFile(headerPath);
         val footer = stringFromFile(footerPath);
         val link = stringFromFile(linkPath);
 
+        Tree tree = new Tree(sourcePath.toFile());
+        Set<File> pointFile = new HashSet<>();
+        tree(sourcePath.toFile(), tree, pointFile);
+        pointFile.forEach((f) -> Do(f.toPath(), f.));
+
         init(sourcePath);
+
+
+    }
+
+    static void Do(
+            Path sourcePath,
+            Path newPath,
+            Path sourcePostsPath,
+            Path targetPath,
+            String header,
+            String link,
+            String linkSeparator,
+            String footer) throws Exception {
         Map<String, String> indexMap = new HashMap<>();
         indexMap.put("currentPage", "\"\"");
         indexMap.put("size", "\"\"");
         renderNewPosts(newPath, sourcePostsPath, targetPath, header, simpleTemplate(footer, indexMap));
         generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
-        copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList("header.html", "footer.html")));
+        copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList(Paths.get("header.html"), Paths.get("footer.html"))));
     }
 
-    static void validateFileNames(String folderPath) throws Exception {
+    static void validateFileNames(Path folderPath) throws Exception {
         val expected = "Some-blog-post-name-<yyyy-MM-dd-HH-mm>.md";
         val example = "Your-wise-blog-post-name-2015-07-15-00-45.md";
-        for (val path : Files.newDirectoryStream(Paths.get(folderPath), (p) -> (!Files.isDirectory(p)) && (!p.startsWith(".")))) {
+        for (val path : Files.newDirectoryStream(folderPath, (p) -> (!Files.isDirectory(p)) && (!p.startsWith(".")))) {
             val fileName = Objects.requireNonNull(path.getFileName()).toString();
             val fileNamePieces = fileName.split("\\.");
             val errMsg = String.format("File name '%s' does not match the expected format " + "'%s' - e.g. '%s'", fileName, expected, example);
@@ -152,9 +170,9 @@ public final class JavaStatic {
         return res.toString();
     }
 
-    static void generateIndex(String sourcePostsPath, String targetPath, String header, final String link, final String linkSeparator, final String footer) throws Exception {
+    static void generateIndex(Path sourcePostsPath, Path targetPath, String header, final String link, final String linkSeparator, final String footer) throws Exception {
         final AtomicInteger counter = new AtomicInteger(1);
-        val html = Files.list(Paths.get(sourcePostsPath))
+        val html = Files.list(sourcePostsPath)
                 .filter((p) -> !Files.isDirectory(p))
                 .map((p) -> fileNameToPostSummary(p.getFileName().toString()))
                 .sorted((f, s) -> s.getDate().compareTo(f.getDate()))
@@ -171,35 +189,34 @@ public final class JavaStatic {
             map.put("pageCount", pageCount.toString());
             map.put("pageSize", pageSize.toString());
             String pageFooter = simpleTemplate(footer, map);
-            writeFile(header + "\n" + v + "\n" + pageFooter, targetPath + ("/index" + (k == 1 ? "" : k) + ".html"));
+            writeFile(header + "\n" + v + "\n" + pageFooter, targetPath.resolve("/index" + (k == 1 ? "" : k) + ".html"));
         });
     }
 
-    static void renderNewPosts(String newPath, String sourcePostsPath, String targetPath, String header, String footer) throws Exception {
-        for (val newSrcFile : Files.newDirectoryStream(Paths.get(newPath), (p) -> (!Files.isDirectory(p)))) {
+    static void renderNewPosts(Path newPath, Path sourcePostsPath, Path targetPath, String header, String footer) throws Exception {
+        for (val newSrcFile : Files.newDirectoryStream(newPath, (p) -> (!Files.isDirectory(p)))) {
             val html = render(newSrcFile, header, footer);
             @NonNull val srcFileName = Objects.requireNonNull(newSrcFile.getFileName()).toString();
             @NonNull val array = srcFileName.split("\\.");
             val destFileName = String.join(" ", copyOf(array, array.length - 1)).concat(".html");
-            writeFile(html, targetPath + "/" + destFileName);
+            writeFile(html, targetPath.resolve(destFileName));
             val processedSrcFilePath = sourcePostsPath + "/" + srcFileName;
             moveFile(newSrcFile, Paths.get(processedSrcFilePath));
         }
     }
 
-    static void requireFile(String pathToFile) {
+    static void requireFile(Path pathToFile) {
         requireFile(pathToFile, false);
     }
 
-    static void requireFolder(String pathToFile) {
+    static void requireFolder(Path pathToFile) {
         requireFile(pathToFile, true);
     }
 
-    static void requireFile(String pathToFile, boolean mustBeFolder) {
-        val requiredFile = Paths.get(pathToFile);
+    static void requireFile(Path requiredFile, boolean mustBeFolder) {
         val isFolder = Files.isDirectory(requiredFile);
         val folderOrFile = mustBeFolder ? "folder" : "file";
-        check(Files.exists(requiredFile) && ((mustBeFolder) == isFolder), String.format("%s does not exist or is not a %s", pathToFile, folderOrFile));
+        check(Files.exists(requiredFile) && ((mustBeFolder) == isFolder), String.format("%s does not exist or is not a %s", requiredFile, folderOrFile));
     }
 
     static void moveFile(Path srcFile, Path destFile) throws Exception {
@@ -207,41 +224,39 @@ public final class JavaStatic {
         Files.copy(srcFile, destFile, StandardCopyOption.REPLACE_EXISTING);
     }
 
-    static void writeFile(String fileContent, String filePath) {
+    static void writeFile(String fileContent, Path filePath) {
         out.println(String.format("Writing %s ...", filePath));
         try {
-            Files.write(Paths.get(filePath), fileContent.getBytes(StandardCharsets.UTF_8));
+            Files.write(filePath, fileContent.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             err.println("写入文件失败:" + filePath);
             e.printStackTrace();
         }
     }
 
-    static void createFolderIfNotExists(String pathToFolder) throws Exception {
-        val folder = Paths.get(pathToFolder);
-        if (Files.notExists(folder) || !Files.isDirectory(folder)) Files.createDirectory(folder);
+    static void createFolderIfNotExists(Path pathToFolder) throws Exception {
+        if (Files.notExists(pathToFolder) || !Files.isDirectory(pathToFolder)) Files.createDirectory(pathToFolder);
     }
 
-    static String render(Path file, String header, String footer) throws Exception {
-        val srcFilePath = file.toString();
+    static String render(Path srcFilePath, String header, String footer) throws Exception {
         out.println(String.format("%nRendering %s ...", srcFilePath));
         val markdown = stringFromFile(srcFilePath);
         val html = markdownToHtml.apply(markdown);
         return header + "\n" + html + "\n" + footer;
     }
 
-    static String stringFromFile(String filePath) throws Exception {
+    static String stringFromFile(Path filePath) throws Exception {
         final String ILLEGAL_CHARACTER = "[^\u4E00-\u9FA5\u3000-\u303F\uFF00-\uFFEF\u0000-\u007F\u201c-\u201d]";
-        return new String(Files.readAllBytes(Paths.get(filePath)), StandardCharsets.UTF_8).replaceAll(ILLEGAL_CHARACTER, " ").trim();
+        return new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8).replaceAll(ILLEGAL_CHARACTER, " ").trim();
     }
 
     static String noEndSlash(String str) {
         return str.endsWith("/") || str.endsWith("\\") ? str.substring(0, str.length() - 1) : str;
     }
 
-    static void copyFiles(String srcFolderPath, String destFolderPath, final Set<String> excludeFiles) throws Exception {
-        for (val file : Files.newDirectoryStream(Paths.get(srcFolderPath), (p) -> !excludeFiles.contains(Objects.requireNonNull(p.getFileName()).toString()) && !Files.isDirectory(p))) {
-            val destFile = Paths.get(String.format("%s/%s", destFolderPath, file.getFileName().toString()));
+    static void copyFiles(Path srcFolderPath, Path destFolderPath, final Set<Path> excludeFiles) throws Exception {
+        for (val file : Files.newDirectoryStream(srcFolderPath, (p) -> !excludeFiles.contains(p) && !Files.isDirectory(p))) {
+            val destFile = destFolderPath.resolve(file);
             out.println(String.format("Copying %s to %s ...", file.toString(), destFile.toString()));
             Files.copy(file, destFile, StandardCopyOption.REPLACE_EXISTING);
         }
@@ -297,6 +312,35 @@ public final class JavaStatic {
         }
         matcher.appendTail(newValue);
         return newValue.toString();
+    }
+
+    private static void tree(File f, JavaStatic.Tree tree, Set<File> pointDir) {
+        File[] childs = f.listFiles(); // key point!
+        if (childs == null) return;
+        for (File it : childs) {
+            if (it.isDirectory()) {
+                Tree child = new Tree(it);
+                tree.children.add(child);
+                tree(it, child, pointDir);
+            } else {
+                tree.children.add(new Tree(it));
+                pointDir.add(it.getParentFile());
+            }
+        }
+
+    }
+
+    static class Tree {
+        public List<Tree> children;
+        public File file;
+
+        public Tree(File file) {
+            if (file.isDirectory()) {
+                children = new ArrayList<>();
+            }
+            this.file = file;
+        }
+
     }
 
     @Value
