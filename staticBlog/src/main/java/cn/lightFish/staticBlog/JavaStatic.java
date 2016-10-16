@@ -62,21 +62,23 @@ public final class JavaStatic {
         pageSize = Integer.getInteger(settings.getProperty("pageSize"), 5);
         val mode = settings.getProperty("markdownMode") == null ? "github" : settings.getProperty("markdownMode");
         switch (mode) {
-            case "pegDownProcessor":
+         /*   case "pegDownProcessor":
                 final PegDownProcessor peg = new PegDownProcessor();
                 markdownToHtml = (s) -> peg.markdownToHtml(s);
-                break;
-            case "github":
+                break;*/
+          /*  case "github":
                 markdownToHtml = JavaStatic::markdownToHtmlByGithub;
-                break;
+                break;*/
             default:
-                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
-                break;
+   /*             markdownToHtml = JavaStatic::markdownToHtmlByGithub;
+                break;*/
+                final PegDownProcessor peg = new PegDownProcessor();
+                markdownToHtml = (s) -> peg.markdownToHtml(s);
         }
     }
 
     public static void main(String[] args) throws Exception {
-        args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本"};
+        //args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本"};
 
         val options = validateArgs.apply(args);
         if (options.length == 0) return;
@@ -157,13 +159,18 @@ public final class JavaStatic {
                 .map((p) -> fileNameToPostSummary(p.getFileName().toString()))
                 .sorted((f, s) -> s.getDate().compareTo(f.getDate()))
                 .map((s) -> PostSummary.toLink(link, s))
+                .distinct()
                 .collect(Collectors.groupingBy((k) -> {
                     int no = counter.getAndIncrement();
                     return 1 <= no && no <= pageSize ? 1 : no % pageSize == 0 ? no / pageSize : no / pageSize + 1;
                 }, Collectors.joining(linkSeparator)));
         final Integer pageCount = html.size();
         html.forEach((k, v) -> {
-            String pageFooter = String.format(footer, k, pageCount, pageSize);
+            Map<String, String> map = new HashMap<>(3);
+            map.put("currentPage", k.toString());
+            map.put("pageCount", pageCount.toString());
+            map.put("pageSize", pageSize.toString());
+            String pageFooter = simpleTemplate(footer, map);
             writeFile(header + "\n" + v + "\n" + pageFooter, targetPath + ("/index" + (k == 1 ? "" : k) + ".html"));
         });
     }
@@ -286,7 +293,7 @@ public final class JavaStatic {
         while (matcher.find()) {
             String key = matcher.group(1);
             String r = data.get(key) != null ? data.get(key).toString() : nullReplaceVal;
-            matcher.appendReplacement(newValue, r.replaceAll("\\\\", "\\\\\\\\")); //这个是为了替换windows下的文件目录在java里用\\表示
+            matcher.appendReplacement(newValue, r.replaceAll("\\\\", "\\\\\\\\"));
         }
         matcher.appendTail(newValue);
         return newValue.toString();
