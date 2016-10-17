@@ -79,7 +79,7 @@ public final class JavaStatic {
     }
 
     public static void main(String[] args) throws Exception {
-        args = new String[]{"D:/Users/karakapi/zhuomian/static - 副本"};
+        args = new String[]{"D:\\Users\\karakapi\\zhuomian\\static - 副本"};
 
         val options = validateArgs.apply(args);
         if (options.length == 0) return;
@@ -111,7 +111,7 @@ public final class JavaStatic {
         val link = stringFromFile(linkPath);
 
         init(sourcePath);
-        Tree tree = new Tree(sourcePath.toFile());
+        Tree tree = new Tree(sourcePath.toFile(), null);
         Set<File> pointFile = new HashSet<>();
         tree(newPath.toFile(), tree, pointFile);
         val s = new StringBuilder();
@@ -123,7 +123,8 @@ public final class JavaStatic {
             Do(sourcePath, it.toPath(), sourcePostsPath, targetPath, header, link, linkSeparator, footer);
         }
 
-
+        generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
+        copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList(Paths.get("header.html"), Paths.get("footer.html"))));
     }
 
     static void Do(
@@ -145,8 +146,6 @@ public final class JavaStatic {
         }
 
         renderNewPosts(newPath, sourcePostsPath, targetPath, header, simpleTemplate(footer, indexMap));
-        generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
-        copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList(Paths.get("header.html"), Paths.get("footer.html"))));
     }
 
     static void validateFileNames(Path folderPath) throws Exception {
@@ -190,9 +189,13 @@ public final class JavaStatic {
 
     static void generateIndex(Path sourcePostsPath, Path targetPath, String header, final String link, final String linkSeparator, final String footer) throws Exception {
         final AtomicInteger counter = new AtomicInteger(1);
-        val html = Files.list(sourcePostsPath)
+        val html = Files.walk(sourcePostsPath)
                 .filter((p) -> !Files.isDirectory(p))
-                .map((p) -> fileNameToPostSummary(p.getFileName().toString()))
+                .map((file) -> {
+                    Path relativizePath = targetPath.relativize(file);
+                    Path url = relativizePath.subpath(3, relativizePath.getNameCount());
+                    return fileNameToPostSummary(url.toString());
+                })//目录对应的url
                 .sorted((f, s) -> s.getDate().compareTo(f.getDate()))
                 .map((s) -> PostSummary.toLink(link, s))
                 .distinct()
@@ -216,10 +219,13 @@ public final class JavaStatic {
             val html = render(newSrcFile, header, footer);
             @NonNull val srcFileName = Objects.requireNonNull(newSrcFile.getFileName()).toString();
             @NonNull val array = srcFileName.split("\\.");
-            val destFileName = String.join(" ", copyOf(array, array.length - 1)).concat(".html");
-            writeFile(html, targetPath.resolve(destFileName));
-            val processedSrcFilePath = sourcePostsPath + "/" + srcFileName;
-            moveFile(newSrcFile, Paths.get(processedSrcFilePath));
+            val destFileName = Paths.get(String.join(" ", copyOf(array, array.length - 1)).concat(".html"));
+            Path relativizePath = targetPath.relativize(newPath);
+            Path url = relativizePath.subpath(2, relativizePath.getNameCount());
+            //与new 与post 目录结构一致
+            writeFile(html, targetPath.resolve(url).resolve(destFileName));
+            val processedSrcFilePath = sourcePostsPath.resolve(srcFileName);
+            moveFile(newSrcFile, processedSrcFilePath);
         }
     }
 
@@ -341,11 +347,11 @@ public final class JavaStatic {
         if (childs == null) return;
         for (File it : childs) {
             if (it.isDirectory()) {
-                Tree child = new Tree(it);
+                Tree child = new Tree(it, tree);
                 tree.children.add(child);
                 tree(it, child, pointDir);
             } else {
-                tree.children.add(new Tree(it));
+                tree.children.add(new Tree(it, tree));
                 pointDir.add(it.getParentFile());
             }
         }
@@ -355,18 +361,24 @@ public final class JavaStatic {
     static class Tree {
         public List<Tree> children;
         public File file;
+        public Tree top;
 
-        public Tree(File file) {
+        public Tree(File file, Tree top) {
             if (file.isDirectory()) {
                 children = new ArrayList<>();
             }
             this.file = file;
+            this.top = top;
         }
 
         public void toJsonWithDirectory(StringBuilder s, BiConsumer<StringBuilder, File> fileNameFun) {
             s.append("{").append("\"name\":").append("\"");
             fileNameFun.accept(s, file);
-            s.append("\"");
+            if (top != null) {
+                s.append("\",\"top\":\"");
+                fileNameFun.accept(s, top.file);
+                s.append("\"");
+            }
             if (children == null) {
                 s.append("}");
             } else {
