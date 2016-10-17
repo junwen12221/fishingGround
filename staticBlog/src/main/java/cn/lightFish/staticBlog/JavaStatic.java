@@ -109,12 +109,17 @@ public final class JavaStatic {
         val footer = stringFromFile(footerPath);
         val link = stringFromFile(linkPath);
 
+        init(sourcePath);
         Tree tree = new Tree(sourcePath.toFile());
         Set<File> pointFile = new HashSet<>();
-        tree(sourcePath.toFile(), tree, pointFile);
-        pointFile.forEach((f) -> Do(f.toPath(), f.));
+        tree(newPath.toFile(), tree, pointFile);
+        val s = new StringBuilder();
+        tree.toJsonWithDirectory(s);
+        out.println(s);
 
-        init(sourcePath);
+        for (val it : pointFile) {
+            Do(it.toPath(), newPath, sourcePostsPath, targetPath, header, link, linkSeparator, footer);
+        }
 
 
     }
@@ -339,6 +344,26 @@ public final class JavaStatic {
                 children = new ArrayList<>();
             }
             this.file = file;
+        }
+
+        public void toJsonWithDirectory(StringBuilder s) {
+            s.append("{").append("name:").append("\"").append(file.getName()).append("\"");
+            if (children == null) {
+                s.append("}");
+            } else {
+                s.append(",children: [");
+                if (children.size() != 0) {
+                    int i = 0;
+                    for (; i < (children.size() - 1); ++i) {
+                        children.get(i).toJsonWithDirectory(s);
+                        s.append(",\n");
+                    }
+                    children.get(i).toJsonWithDirectory(s);
+                }
+                s.append("]}");
+            }
+
+
         }
 
     }
