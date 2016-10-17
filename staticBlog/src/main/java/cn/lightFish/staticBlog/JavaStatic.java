@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -114,11 +115,12 @@ public final class JavaStatic {
         Set<File> pointFile = new HashSet<>();
         tree(newPath.toFile(), tree, pointFile);
         val s = new StringBuilder();
-        tree.toJsonWithDirectory(s);
+        tree.toJsonWithDirectory(s, (stringBuilder, file) -> s.append(file.getName().replace(".md", ".html")));
+        Files.write(targetPath.resolve("content.js"), s.toString().getBytes());
         out.println(s);
 
         for (val it : pointFile) {
-            Do(it.toPath(), newPath, sourcePostsPath, targetPath, header, link, linkSeparator, footer);
+            Do(sourcePath, it.toPath(), sourcePostsPath, targetPath, header, link, linkSeparator, footer);
         }
 
 
@@ -133,9 +135,15 @@ public final class JavaStatic {
             String link,
             String linkSeparator,
             String footer) throws Exception {
-        Map<String, String> indexMap = new HashMap<>();
+        Map<String, String> indexMap = new HashMap<>(2);
         indexMap.put("currentPage", "\"\"");
         indexMap.put("size", "\"\"");
+        Path relativizeNew = sourcePostsPath.relativize(newPath);
+        if (!(relativizeNew.getNameCount() <= 3))// ../../new
+        {
+            sourcePostsPath = sourcePostsPath.resolve(relativizeNew.subpath(3, relativizeNew.getNameCount()));
+        }
+
         renderNewPosts(newPath, sourcePostsPath, targetPath, header, simpleTemplate(footer, indexMap));
         generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
         copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList(Paths.get("header.html"), Paths.get("footer.html"))));
@@ -152,6 +160,11 @@ public final class JavaStatic {
             check(fileNamePieces[0].split("-").length > 5, errMsg);
         }
     }
+ /*   static Path shift(Path first,Path second,Path shift){
+        if(first.startsWith(second)){
+
+        }
+    }*/
 
     static PostSummary fileNameToPostSummary(String fileName) {
         @NonNull val fileNameNoExt = fileName.split("\\.")[0];
@@ -194,7 +207,7 @@ public final class JavaStatic {
             map.put("pageCount", pageCount.toString());
             map.put("pageSize", pageSize.toString());
             String pageFooter = simpleTemplate(footer, map);
-            writeFile(header + "\n" + v + "\n" + pageFooter, targetPath.resolve("/index" + (k == 1 ? "" : k) + ".html"));
+            writeFile(header + "\n" + v + "\n" + pageFooter, targetPath.resolve("index" + (k == 1 ? "" : k) + ".html"));
         });
     }
 
@@ -226,6 +239,10 @@ public final class JavaStatic {
 
     static void moveFile(Path srcFile, Path destFile) throws Exception {
         out.println(String.format("Moving %s to %s ...", srcFile.toString(), destFile.toString()));
+        Path dir = destFile.getParent();
+        if (!Files.exists(dir)) {
+            Files.createDirectory(dir);
+        }
         Files.copy(srcFile, destFile, StandardCopyOption.REPLACE_EXISTING);
     }
 
@@ -261,7 +278,7 @@ public final class JavaStatic {
 
     static void copyFiles(Path srcFolderPath, Path destFolderPath, final Set<Path> excludeFiles) throws Exception {
         for (val file : Files.newDirectoryStream(srcFolderPath, (p) -> !excludeFiles.contains(p) && !Files.isDirectory(p))) {
-            val destFile = destFolderPath.resolve(file);
+            val destFile = destFolderPath.resolve(file.getFileName());
             out.println(String.format("Copying %s to %s ...", file.toString(), destFile.toString()));
             Files.copy(file, destFile, StandardCopyOption.REPLACE_EXISTING);
         }
@@ -346,26 +363,25 @@ public final class JavaStatic {
             this.file = file;
         }
 
-        public void toJsonWithDirectory(StringBuilder s) {
-            s.append("{").append("name:").append("\"").append(file.getName()).append("\"");
+        public void toJsonWithDirectory(StringBuilder s, BiConsumer<StringBuilder, File> fileNameFun) {
+            s.append("{").append("\"name\":").append("\"");
+            fileNameFun.accept(s, file);
+            s.append("\"");
             if (children == null) {
                 s.append("}");
             } else {
-                s.append(",children: [");
+                s.append(",\"children\": [");
                 if (children.size() != 0) {
                     int i = 0;
                     for (; i < (children.size() - 1); ++i) {
-                        children.get(i).toJsonWithDirectory(s);
+                        children.get(i).toJsonWithDirectory(s, fileNameFun);
                         s.append(",\n");
                     }
-                    children.get(i).toJsonWithDirectory(s);
+                    children.get(i).toJsonWithDirectory(s, fileNameFun);
                 }
                 s.append("]}");
             }
-
-
         }
-
     }
 
     @Value
