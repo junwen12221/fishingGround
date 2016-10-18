@@ -1,6 +1,5 @@
 package cn.lightFish.staticBlog;
 
-import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.Value;
 import lombok.val;
@@ -27,34 +26,18 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.lang.System.out;
-import static java.util.Arrays.copyOf;
 
 public final class JavaStatic {
     final static String defaultSource = "source";
     final static String defaultTarget = "target";
     final static Pattern pattern = Pattern.compile("\\$\\{([^}]+)}");
-    final static Function<String[], String[]> validateArgs = (args) -> {
-        switch (args.length) {
-            case 1:
-                return new String[]{noEndSlash(args[0]), defaultSource, defaultTarget};
-            case 2:
-                return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), defaultTarget};
-            case 3:
-                return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), noEndSlash(args[2])};
-            default:
-                out.println("Usage: java -jar " + JavaStatic.class.getPackage().getName() + " <blogPath> ");
-                out.println("[<source> default 'source'] [<target> default 'target']");
-                return new String[0];
-        }
-    };
     static String host = "";
     static Integer pageSize = 5;    // 每页显示的条数
     static Function<String, String> markdownToHtml;
     static String linkSeparator = "<br/>\n";
 
     public static void main(String[] args) throws Exception {
-        args = new String[]{"D:\\Users\\karakapi\\zhuomian\\static - 副本"};
-        val options = validateArgs.apply(args);
+        val options = validateArgs(args);
         if (options.length == 0) return;
         val path = options[0];
         val source = options[1];
@@ -88,15 +71,15 @@ public final class JavaStatic {
         Tree tree = new Tree(sourcePath.toFile(), null);
         Set<File> pointFile = new HashSet<>();
         tree(newPath.toFile(), tree, pointFile);
-        StringBuilder s = new StringBuilder();
-        tree.toJsonWithDirectory(s, (stringBuilder, file) -> s.append(file.getName().replace(".md", ".html")));
-        Files.write(targetPath.resolve("content.js"), s.toString().getBytes());
+        StringBuilder content = new StringBuilder();
+        tree.toJsonWithDirectory(content, (stringBuilder, file) -> content.append(file.getName().replace(".md", ".html")));
+        Files.write(targetPath.resolve("content.js"), content.toString().getBytes(StandardCharsets.UTF_8));
 
         Map<String, String> indexMap = new HashMap<>(2);
         indexMap.put("currentPage", "\"\"");
         indexMap.put("size", "\"\"");
         String postFooter = simpleTemplate(footer, indexMap);
-        pointFile.forEach((it) -> Do(it.toPath(), sourcePostsPath, targetPath, header, postFooter));
+        pointFile.forEach((it) -> processNewPost(it.toPath(), sourcePostsPath, targetPath, header, postFooter));
 
         generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
         copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList(
@@ -104,6 +87,21 @@ public final class JavaStatic {
                 Paths.get("footer.html"),
                 Paths.get("setting.properties"),
                 Paths.get("link.html"))));
+    }
+
+    static String[] validateArgs(String[] args) {
+        switch (args.length) {
+            case 1:
+                return new String[]{noEndSlash(args[0]), defaultSource, defaultTarget};
+            case 2:
+                return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), defaultTarget};
+            case 3:
+                return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), noEndSlash(args[2])};
+            default:
+                out.println("Usage: java -jar " + JavaStatic.class.getPackage().getName() + " <blogPath> ");
+                out.println("[<source> default 'source'] [<target> default 'target']");
+                return new String[0];
+        }
     }
 
     static void init(Path sourcePath) throws IOException {
@@ -127,7 +125,7 @@ public final class JavaStatic {
     }
 
     @SneakyThrows
-    static void Do(Path newPath, Path sourcePostsPath, Path targetPath, String header, String footer) {
+    static void processNewPost(Path newPath, Path sourcePostsPath, Path targetPath, String header, String footer) {
         Path relativizeNew = sourcePostsPath.relativize(newPath);
         if (relativizeNew.getNameCount() > 3) {// ../../new
             sourcePostsPath = sourcePostsPath.resolve(relativizeNew.subpath(3, relativizeNew.getNameCount()));
@@ -148,7 +146,7 @@ public final class JavaStatic {
     }
 
     static PostSummary fileNameToPostSummary(String path, String fileName) {
-        @NonNull val fileNameNoExt = fileName.split("\\.")[0];
+        val fileNameNoExt = fileName.split("\\.")[0];
         val url = "".equals(path) ? fileNameNoExt + ".html" : path + "/" + fileNameNoExt + ".html";
         val fileNamePiecesNoExt = fileNameNoExt.split("-");
         val fileNameNoDate = Arrays.copyOf(fileNamePiecesNoExt, fileNamePiecesNoExt.length - 5);
@@ -198,7 +196,7 @@ public final class JavaStatic {
             val html = render(newSrcFile, header, footer);
             val srcFileName = Objects.requireNonNull(newSrcFile.getFileName()).toString();
             val array = srcFileName.split("\\.");
-            val destFileName = Paths.get(String.join(" ", copyOf(array, array.length - 1)).concat(".html"));
+            val destFileName = Paths.get(array[0].concat(".html"));
             Path relativizePath = targetPath.relativize(newPath);
             int count = relativizePath.getNameCount();
             if ((count >= 3)) {// ../../new
@@ -229,15 +227,15 @@ public final class JavaStatic {
 
     @SneakyThrows
     static void moveFile(Path srcFile, Path destFile) {
-        out.format("Moving %s to %s ...\n", srcFile.toString(), destFile.toString());
-        Path dir = destFile.getParent();
+        out.format("Moving %s to %s ...%n", srcFile.toString(), destFile.toString());
+        Path dir = Objects.requireNonNull(destFile.getParent());
         if (!Files.exists(dir)) Files.createDirectory(dir);
         Files.copy(srcFile, destFile, StandardCopyOption.REPLACE_EXISTING);
     }
 
     @SneakyThrows
     static void writeFile(String fileContent, Path filePath) {
-        out.format("Writing %s ...\n", filePath);
+        out.format("Writing %s ...%n", filePath);
         Files.write(filePath, fileContent.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -246,7 +244,7 @@ public final class JavaStatic {
     }
 
     static String render(Path srcFilePath, String header, String footer) throws Exception {
-        out.format("%nRendering %s ...\n", srcFilePath);
+        out.format("%nRendering %s ...%n", srcFilePath);
         val markdown = stringFromFile(srcFilePath);
         val html = markdownToHtml.apply(markdown);
         return header + "\n" + html + "\n" + footer;
@@ -264,7 +262,7 @@ public final class JavaStatic {
     static void copyFiles(Path srcFolderPath, Path destFolderPath, final Set<Path> excludeFiles) throws Exception {
         for (val file : Files.newDirectoryStream(srcFolderPath, (p) -> !excludeFiles.contains(p) && !Files.isDirectory(p))) {
             val destFile = destFolderPath.resolve(file.getFileName());
-            out.format("Copying %s to %s ...\n", file.toString(), destFile.toString());
+            out.format("Copying %s to %s ...%n", file.toString(), destFile.toString());
             Files.copy(file, destFile, StandardCopyOption.REPLACE_EXISTING);
         }
     }
