@@ -1,7 +1,6 @@
 package cn.lightFish.staticBlog;
 
 import lombok.SneakyThrows;
-import lombok.Value;
 import lombok.val;
 import org.pegdown.PegDownProcessor;
 
@@ -12,25 +11,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.text.Format;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static cn.lightFish.staticBlog.K.*;
 import static java.lang.System.out;
 
 public final class JavaStatic {
     final static String defaultSource = "source";
     final static String defaultTarget = "target";
-    final static Pattern pattern = Pattern.compile("\\$\\{([^}]+)}");
     static String host = "";
     static Integer pageSize = 5;    // 每页显示的条数
     static Function<String, String> markdownToHtml;
@@ -70,7 +62,7 @@ public final class JavaStatic {
 
         Tree tree = new Tree(sourcePath.toFile(), null);
         Set<File> pointFile = new HashSet<>();
-        tree(newPath.toFile(), tree, pointFile);
+        Tree.transform(newPath.toFile(), tree, pointFile);
         StringBuilder content = new StringBuilder();
         tree.toJsonWithDirectory(content, (stringBuilder, file) -> content.append(file.getName().replace(".md", ".html")));
         Files.write(targetPath.resolve("content.js"), content.toString().getBytes(StandardCharsets.UTF_8));
@@ -211,64 +203,11 @@ public final class JavaStatic {
         }
     }
 
-    static void requireFile(Path pathToFile) {
-        requireFile(pathToFile, false);
-    }
-
-    static void requireFolder(Path pathToFile) {
-        requireFile(pathToFile, true);
-    }
-
-    static void requireFile(Path requiredFile, boolean mustBeFolder) {
-        val isFolder = Files.isDirectory(requiredFile);
-        val folderOrFile = mustBeFolder ? "folder" : "file";
-        check(Files.exists(requiredFile) && ((mustBeFolder) == isFolder), String.format("%s does not exist or is not a %s", requiredFile, folderOrFile));
-    }
-
-    @SneakyThrows
-    static void moveFile(Path srcFile, Path destFile) {
-        out.format("Moving %s to %s ...%n", srcFile.toString(), destFile.toString());
-        Path dir = Objects.requireNonNull(destFile.getParent());
-        if (!Files.exists(dir)) Files.createDirectory(dir);
-        Files.copy(srcFile, destFile, StandardCopyOption.REPLACE_EXISTING);
-    }
-
-    @SneakyThrows
-    static void writeFile(String fileContent, Path filePath) {
-        out.format("Writing %s ...%n", filePath);
-        Files.write(filePath, fileContent.getBytes(StandardCharsets.UTF_8));
-    }
-
-    static void createFolderIfNotExists(Path pathToFolder) throws Exception {
-        if (Files.notExists(pathToFolder) || !Files.isDirectory(pathToFolder)) Files.createDirectory(pathToFolder);
-    }
-
     static String render(Path srcFilePath, String header, String footer) throws Exception {
         out.format("%nRendering %s ...%n", srcFilePath);
         val markdown = stringFromFile(srcFilePath);
         val html = markdownToHtml.apply(markdown);
         return header + "\n" + html + "\n" + footer;
-    }
-
-    static String stringFromFile(Path filePath) throws Exception {
-        final String ILLEGAL_CHARACTER = "[^\u4E00-\u9FA5\u3000-\u303F\uFF00-\uFFEF\u0000-\u007F\u201c-\u201d]";
-        return new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8).replaceAll(ILLEGAL_CHARACTER, " ").trim();
-    }
-
-    static String noEndSlash(String str) {
-        return str.endsWith("/") || str.endsWith("\\") ? str.substring(0, str.length() - 1) : str;
-    }
-
-    static void copyFiles(Path srcFolderPath, Path destFolderPath, final Set<Path> excludeFiles) throws Exception {
-        for (val file : Files.newDirectoryStream(srcFolderPath, (p) -> !excludeFiles.contains(p) && !Files.isDirectory(p))) {
-            val destFile = destFolderPath.resolve(file.getFileName());
-            out.format("Copying %s to %s ...%n", file.toString(), destFile.toString());
-            Files.copy(file, destFile, StandardCopyOption.REPLACE_EXISTING);
-        }
-    }
-
-    public static void check(boolean expression, String message) {
-        if (!expression) throw new IllegalStateException(message);
     }
 
     @SneakyThrows
@@ -293,99 +232,6 @@ public final class JavaStatic {
                 result.write(buffer, 0, length);
             }
             return result.toString("UTF-8");
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    public static String simpleTemplate(String templateStr, Map<String, ?> data, String... defaultNullReplaceVals) {
-        if (templateStr == null) return null;
-        if (data == null) data = Collections.EMPTY_MAP;
-        String nullReplaceVal = defaultNullReplaceVals.length > 0 ? defaultNullReplaceVals[0] : "";
-        StringBuffer newValue = new StringBuffer(templateStr.length());
-        Matcher matcher = pattern.matcher(templateStr);
-        while (matcher.find()) {
-            String key = matcher.group(1);
-            Object value = data.get(key);
-            if (value != null) {
-                matcher.appendReplacement(newValue, value.toString().replaceAll("\\\\", "\\\\\\\\"));
-                continue;
-            }
-            if (defaultNullReplaceVals.length > 0) {
-                matcher.appendReplacement(newValue, nullReplaceVal);
-            }
-        }
-        matcher.appendTail(newValue);
-        return newValue.toString();
-    }
-
-    private static void tree(File f, JavaStatic.Tree tree, Set<File> pointDir) {
-        File[] childs = f.listFiles();
-        if (childs == null) return;
-        for (File it : childs) {
-            if (it.isDirectory()) {
-                Tree child = new Tree(it, tree);
-                tree.children.add(child);
-                tree(it, child, pointDir);
-            } else {
-                tree.children.add(new Tree(it, tree));
-                pointDir.add(it.getParentFile());
-            }
-        }
-    }
-
-    static class Tree {
-        public List<Tree> children;
-        public File file;
-        public Tree top;
-
-        public Tree(File file, Tree top) {
-            if (file.isDirectory()) {
-                children = new ArrayList<>();
-            }
-            this.file = file;
-            this.top = top;
-        }
-
-        public void toJsonWithDirectory(StringBuilder s, BiConsumer<StringBuilder, File> fileNameFun) {
-            s.append("{").append("\"name\":").append("\"");
-            fileNameFun.accept(s, file);
-            if (top != null) {
-                s.append("\",\"top\":\"");
-                fileNameFun.accept(s, top.file);
-                s.append("\"");
-            }
-            if (children == null) {
-                s.append("}");
-            } else {
-                s.append(",\"children\": [");
-                if (children.size() != 0) {
-                    int i = 0;
-                    for (; i < (children.size() - 1); ++i) {
-                        children.get(i).toJsonWithDirectory(s, fileNameFun);
-                        s.append(",\n");
-                    }
-                    children.get(i).toJsonWithDirectory(s, fileNameFun);
-                }
-                s.append("]}");
-            }
-        }
-    }
-
-    @Value
-    static class PostSummary {
-        final static Format df = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).toFormat();
-        final static Format dfIso = DateTimeFormatter.ISO_LOCAL_DATE_TIME.toFormat();
-        String url;
-        String title;
-        LocalDateTime date;
-
-        public static String toLink(String tpl, PostSummary ps) {
-            Map<String, String> map = new HashMap<>();
-            map.put("ps.url", ps.getUrl());
-            map.put("ps.title", ps.getTitle());
-            map.put("datetime", dfIso.format(ps.getDate()));
-            map.put("time", df.format(ps.getDate()));
-            return simpleTemplate(tpl, map);
         }
     }
 }
