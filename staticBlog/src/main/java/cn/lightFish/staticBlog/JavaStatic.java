@@ -1,6 +1,7 @@
 package cn.lightFish.staticBlog;
 
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.Value;
 import lombok.val;
 import org.pegdown.PegDownProcessor;
@@ -25,16 +26,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.lang.System.err;
 import static java.lang.System.out;
 import static java.util.Arrays.copyOf;
 
-/**
- * Created by karak on 16-10-3.
- */
 public final class JavaStatic {
     final static String defaultSource = "source";
     final static String defaultTarget = "target";
+    final static Pattern pattern = Pattern.compile("\\$\\{([^}]+)}");
     final static Function<String[], String[]> validateArgs = (args) -> {
         switch (args.length) {
             case 1:
@@ -44,46 +42,20 @@ public final class JavaStatic {
             case 3:
                 return new String[]{noEndSlash(args[0]), noEndSlash(args[1]), noEndSlash(args[2])};
             default:
-                out.println("Usage: java -jar staticBlog-x.x.x <blogPath> ");
+                out.println("Usage: java -jar " + JavaStatic.class.getPackage().getName() + " <blogPath> ");
                 out.println("[<source> default 'source'] [<target> default 'target']");
                 return new String[0];
         }
     };
+    static String host = "";
     static Integer pageSize = 5;    // 每页显示的条数
     static Function<String, String> markdownToHtml;
-    static Pattern pattern = Pattern.compile("\\$\\{([^}]+)}");
-    static String linkSeparator;
-
-    static void init(Path sourcePath) throws IOException {
-        Properties settings = new Properties();
-        try (InputStream in = Files.newInputStream(sourcePath.resolve("setting.properties"))) {
-            settings.load(in);
-        }
-        linkSeparator = settings.getProperty("linkseparator") == null ? "<br/>\n" : settings.getProperty("linkseparator");
-        pageSize = Integer.getInteger(settings.getProperty("pageSize"), 5);
-        val mode = settings.getProperty("markdownMode") == null ? "github" : settings.getProperty("markdownMode");
-        switch (mode) {
-         /*   case "pegDownProcessor":
-                final PegDownProcessor peg = new PegDownProcessor();
-                markdownToHtml = (s) -> peg.markdownToHtml(s);
-                break;*/
-          /*  case "github":
-                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
-                break;*/
-            default:
-   /*             markdownToHtml = JavaStatic::markdownToHtmlByGithub;
-                break;*/
-                final PegDownProcessor peg = new PegDownProcessor();
-                markdownToHtml = (s) -> peg.markdownToHtml(s);
-        }
-    }
+    static String linkSeparator = "<br/>\n";
 
     public static void main(String[] args) throws Exception {
         args = new String[]{"D:\\Users\\karakapi\\zhuomian\\static - 副本"};
-
         val options = validateArgs.apply(args);
         if (options.length == 0) return;
-
         val path = options[0];
         val source = options[1];
         val target = options[2];
@@ -106,49 +78,64 @@ public final class JavaStatic {
         val linkPath = sourcePath.resolve("link.html");
         requireFile(linkPath);
 
-        val header = stringFromFile(headerPath);
-        val footer = stringFromFile(footerPath);
+        init(sourcePath);
+        Map<String, String> map = new HashMap<>();
+        map.put("host", host);
+        val header = simpleTemplate(stringFromFile(headerPath), map);
+        val footer = simpleTemplate(stringFromFile(footerPath), map);
         val link = stringFromFile(linkPath);
 
-        init(sourcePath);
         Tree tree = new Tree(sourcePath.toFile(), null);
         Set<File> pointFile = new HashSet<>();
         tree(newPath.toFile(), tree, pointFile);
-        val s = new StringBuilder();
+        StringBuilder s = new StringBuilder();
         tree.toJsonWithDirectory(s, (stringBuilder, file) -> s.append(file.getName().replace(".md", ".html")));
         Files.write(targetPath.resolve("content.js"), s.toString().getBytes());
-        out.println(s);
 
-        for (val it : pointFile) {
-            Do(sourcePath, it.toPath(), sourcePostsPath, targetPath, header, link, linkSeparator, footer);
-        }
-
-        generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
-        copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList(Paths.get("header.html"), Paths.get("footer.html"))));
-    }
-
-    static void Do(
-            Path sourcePath,
-            Path newPath,
-            Path sourcePostsPath,
-            Path targetPath,
-            String header,
-            String link,
-            String linkSeparator,
-            String footer) throws Exception {
         Map<String, String> indexMap = new HashMap<>(2);
         indexMap.put("currentPage", "\"\"");
         indexMap.put("size", "\"\"");
-        Path relativizeNew = sourcePostsPath.relativize(newPath);
-        if (!(relativizeNew.getNameCount() <= 3))// ../../new
-        {
-            sourcePostsPath = sourcePostsPath.resolve(relativizeNew.subpath(3, relativizeNew.getNameCount()));
-        }
+        String postFooter = simpleTemplate(footer, indexMap);
+        pointFile.forEach((it) -> Do(it.toPath(), sourcePostsPath, targetPath, header, postFooter));
 
-        renderNewPosts(newPath, sourcePostsPath, targetPath, header, simpleTemplate(footer, indexMap));
+        generateIndex(sourcePostsPath, targetPath, header, link, linkSeparator, footer);
+        copyFiles(sourcePath, targetPath, new HashSet<>(Arrays.asList(
+                Paths.get("header.html"),
+                Paths.get("footer.html"),
+                Paths.get("setting.properties"),
+                Paths.get("link.html"))));
     }
 
-    static void validateFileNames(Path folderPath) throws Exception {
+    static void init(Path sourcePath) throws IOException {
+        Properties settings = new Properties();
+        try (BufferedReader in = Files.newBufferedReader(sourcePath.resolve("setting.properties"), StandardCharsets.UTF_8)) {
+            settings.load(in);
+        }
+        linkSeparator = settings.getProperty("linkseparator", "<br/>\n");
+        pageSize = Integer.getInteger(settings.getProperty("pageSize"), 5);
+        String mode = settings.getProperty("markdownMode", "pegDownProcessor");
+        host = settings.getProperty("host", "");
+        switch (mode) {
+            case "github":
+                markdownToHtml = JavaStatic::markdownToHtmlByGithub;
+                break;
+            default:
+                final PegDownProcessor peg = new PegDownProcessor();
+                markdownToHtml = (s) -> peg.markdownToHtml(s);
+                break;
+        }
+    }
+
+    @SneakyThrows
+    static void Do(Path newPath, Path sourcePostsPath, Path targetPath, String header, String footer) {
+        Path relativizeNew = sourcePostsPath.relativize(newPath);
+        if (relativizeNew.getNameCount() > 3) {// ../../new
+            sourcePostsPath = sourcePostsPath.resolve(relativizeNew.subpath(3, relativizeNew.getNameCount()));
+        }
+        renderNewPosts(newPath, sourcePostsPath, targetPath, header, footer);
+    }
+
+    static void validateFileNames(Path folderPath) throws IOException {
         val expected = "Some-blog-post-name-<yyyy-MM-dd-HH-mm>.md";
         val example = "Your-wise-blog-post-name-2015-07-15-00-45.md";
         for (val path : Files.newDirectoryStream(folderPath, (p) -> (!Files.isDirectory(p)) && (!p.startsWith(".")))) {
@@ -159,15 +146,10 @@ public final class JavaStatic {
             check(fileNamePieces[0].split("-").length > 5, errMsg);
         }
     }
- /*   static Path shift(Path first,Path second,Path shift){
-        if(first.startsWith(second)){
 
-        }
-    }*/
-
-    static PostSummary fileNameToPostSummary(String fileName) {
+    static PostSummary fileNameToPostSummary(String path, String fileName) {
         @NonNull val fileNameNoExt = fileName.split("\\.")[0];
-        val url = fileNameNoExt + ".html";
+        val url = "".equals(path) ? fileNameNoExt + ".html" : path + "/" + fileNameNoExt + ".html";
         val fileNamePiecesNoExt = fileNameNoExt.split("-");
         val fileNameNoDate = Arrays.copyOf(fileNamePiecesNoExt, fileNamePiecesNoExt.length - 5);
         val title = String.join(" ", fileNameNoDate);
@@ -181,20 +163,17 @@ public final class JavaStatic {
         return new PostSummary(url, title, date);
     }
 
-    static String tabs(final int n) {
-        StringBuilder res = new StringBuilder(" ");
-        for (int i = 1; i < n; ++i) res.append(" ");
-        return res.toString();
-    }
-
     static void generateIndex(Path sourcePostsPath, Path targetPath, String header, final String link, final String linkSeparator, final String footer) throws Exception {
         final AtomicInteger counter = new AtomicInteger(1);
-        val html = Files.walk(sourcePostsPath)
+        Map<Integer, String> htmlMap = Files.walk(sourcePostsPath)
                 .filter((p) -> !Files.isDirectory(p))
                 .map((file) -> {
                     Path relativizePath = targetPath.relativize(file);
                     Path url = relativizePath.subpath(3, relativizePath.getNameCount());
-                    return fileNameToPostSummary(url.toString());
+                    String fileName = url.getFileName().normalize().toString();
+                    return url.getNameCount() == 1 ?
+                            fileNameToPostSummary("", fileName) :
+                            fileNameToPostSummary(url.getParent().toString(), fileName);
                 })//目录对应的url
                 .sorted((f, s) -> s.getDate().compareTo(f.getDate()))
                 .map((s) -> PostSummary.toLink(link, s))
@@ -203,8 +182,8 @@ public final class JavaStatic {
                     int no = counter.getAndIncrement();
                     return 1 <= no && no <= pageSize ? 1 : no % pageSize == 0 ? no / pageSize : no / pageSize + 1;
                 }, Collectors.joining(linkSeparator)));
-        final Integer pageCount = html.size();
-        html.forEach((k, v) -> {
+        final Integer pageCount = htmlMap.size();
+        htmlMap.forEach((k, v) -> {
             Map<String, String> map = new HashMap<>(3);
             map.put("currentPage", k.toString());
             map.put("pageCount", pageCount.toString());
@@ -217,14 +196,19 @@ public final class JavaStatic {
     static void renderNewPosts(Path newPath, Path sourcePostsPath, Path targetPath, String header, String footer) throws Exception {
         for (val newSrcFile : Files.newDirectoryStream(newPath, (p) -> (!Files.isDirectory(p)))) {
             val html = render(newSrcFile, header, footer);
-            @NonNull val srcFileName = Objects.requireNonNull(newSrcFile.getFileName()).toString();
-            @NonNull val array = srcFileName.split("\\.");
+            val srcFileName = Objects.requireNonNull(newSrcFile.getFileName()).toString();
+            val array = srcFileName.split("\\.");
             val destFileName = Paths.get(String.join(" ", copyOf(array, array.length - 1)).concat(".html"));
             Path relativizePath = targetPath.relativize(newPath);
-            Path url = relativizePath.subpath(2, relativizePath.getNameCount());
+            int count = relativizePath.getNameCount();
+            if ((count >= 3)) {// ../../new
+                relativizePath = relativizePath.subpath(2, relativizePath.getNameCount());
+                targetPath = targetPath.resolve(relativizePath);
+            }
             //与new 与post 目录结构一致
-            writeFile(html, targetPath.resolve(url).resolve(destFileName));
-            val processedSrcFilePath = sourcePostsPath.resolve(srcFileName);
+            if (!Files.exists(targetPath)) Files.createDirectories(targetPath);
+            writeFile(html, targetPath.resolve(destFileName));
+            Path processedSrcFilePath = sourcePostsPath.resolve(srcFileName);
             moveFile(newSrcFile, processedSrcFilePath);
         }
     }
@@ -243,23 +227,18 @@ public final class JavaStatic {
         check(Files.exists(requiredFile) && ((mustBeFolder) == isFolder), String.format("%s does not exist or is not a %s", requiredFile, folderOrFile));
     }
 
-    static void moveFile(Path srcFile, Path destFile) throws Exception {
-        out.println(String.format("Moving %s to %s ...", srcFile.toString(), destFile.toString()));
+    @SneakyThrows
+    static void moveFile(Path srcFile, Path destFile) {
+        out.format("Moving %s to %s ...\n", srcFile.toString(), destFile.toString());
         Path dir = destFile.getParent();
-        if (!Files.exists(dir)) {
-            Files.createDirectory(dir);
-        }
+        if (!Files.exists(dir)) Files.createDirectory(dir);
         Files.copy(srcFile, destFile, StandardCopyOption.REPLACE_EXISTING);
     }
 
+    @SneakyThrows
     static void writeFile(String fileContent, Path filePath) {
-        out.println(String.format("Writing %s ...", filePath));
-        try {
-            Files.write(filePath, fileContent.getBytes(StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            err.println("写入文件失败:" + filePath);
-            e.printStackTrace();
-        }
+        out.format("Writing %s ...\n", filePath);
+        Files.write(filePath, fileContent.getBytes(StandardCharsets.UTF_8));
     }
 
     static void createFolderIfNotExists(Path pathToFolder) throws Exception {
@@ -267,7 +246,7 @@ public final class JavaStatic {
     }
 
     static String render(Path srcFilePath, String header, String footer) throws Exception {
-        out.println(String.format("%nRendering %s ...", srcFilePath));
+        out.format("%nRendering %s ...\n", srcFilePath);
         val markdown = stringFromFile(srcFilePath);
         val html = markdownToHtml.apply(markdown);
         return header + "\n" + html + "\n" + footer;
@@ -285,44 +264,37 @@ public final class JavaStatic {
     static void copyFiles(Path srcFolderPath, Path destFolderPath, final Set<Path> excludeFiles) throws Exception {
         for (val file : Files.newDirectoryStream(srcFolderPath, (p) -> !excludeFiles.contains(p) && !Files.isDirectory(p))) {
             val destFile = destFolderPath.resolve(file.getFileName());
-            out.println(String.format("Copying %s to %s ...", file.toString(), destFile.toString()));
+            out.format("Copying %s to %s ...\n", file.toString(), destFile.toString());
             Files.copy(file, destFile, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
     public static void check(boolean expression, String message) {
-        if (!expression) {
-            throw new IllegalStateException(message);
-        }
+        if (!expression) throw new IllegalStateException(message);
     }
 
+    @SneakyThrows
     static String markdownToHtmlByGithub(String markdown) {
-        try {
-            final String url = "https://api.github.com/markdown/raw";
-            final int timeout = 10000;
-            final URL connectionBuilder = new URL(url);
-            URLConnection connection = connectionBuilder.openConnection();
-            connection.setConnectTimeout(timeout);
-            connection.setReadTimeout(timeout);
-            connection.setRequestProperty("Content-Type", "text/plain");
-            connection.setRequestProperty("Charset", "UTF-8");
-            connection.setDoOutput(true);
-            connection.connect();
-            try (OutputStream o = connection.getOutputStream(); OutputStreamWriter out = new OutputStreamWriter(o, StandardCharsets.UTF_8)) {
-                out.write(markdown);
+        final String url = "https://api.github.com/markdown/raw";
+        final int timeout = 10000;
+        final URL connectionBuilder = new URL(url);
+        URLConnection connection = connectionBuilder.openConnection();
+        connection.setConnectTimeout(timeout);
+        connection.setReadTimeout(timeout);
+        connection.setRequestProperty("Content-Type", "text/plain");
+        connection.setRequestProperty("Charset", "UTF-8");
+        connection.setDoOutput(true);
+        connection.connect();
+        try (OutputStream o = connection.getOutputStream(); OutputStreamWriter out = new OutputStreamWriter(o, StandardCharsets.UTF_8)) {
+            out.write(markdown);
+        }
+        try (InputStream i = connection.getInputStream(); ByteArrayOutputStream result = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = i.read(buffer)) != -1) {
+                result.write(buffer, 0, length);
             }
-            try (InputStream i = connection.getInputStream(); ByteArrayOutputStream result = new ByteArrayOutputStream()) {
-                byte[] buffer = new byte[1024];
-                int length;
-                while ((length = i.read(buffer)) != -1) {
-                    result.write(buffer, 0, length);
-                }
-                return result.toString("UTF-8");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(0);
-            return "";
+            return result.toString("UTF-8");
         }
     }
 
@@ -335,15 +307,21 @@ public final class JavaStatic {
         Matcher matcher = pattern.matcher(templateStr);
         while (matcher.find()) {
             String key = matcher.group(1);
-            String r = data.get(key) != null ? data.get(key).toString() : nullReplaceVal;
-            matcher.appendReplacement(newValue, r.replaceAll("\\\\", "\\\\\\\\"));
+            Object value = data.get(key);
+            if (value != null) {
+                matcher.appendReplacement(newValue, value.toString().replaceAll("\\\\", "\\\\\\\\"));
+                continue;
+            }
+            if (defaultNullReplaceVals.length > 0) {
+                matcher.appendReplacement(newValue, nullReplaceVal);
+            }
         }
         matcher.appendTail(newValue);
         return newValue.toString();
     }
 
     private static void tree(File f, JavaStatic.Tree tree, Set<File> pointDir) {
-        File[] childs = f.listFiles(); // key point!
+        File[] childs = f.listFiles();
         if (childs == null) return;
         for (File it : childs) {
             if (it.isDirectory()) {
@@ -355,7 +333,6 @@ public final class JavaStatic {
                 pointDir.add(it.getParentFile());
             }
         }
-
     }
 
     static class Tree {
@@ -406,12 +383,6 @@ public final class JavaStatic {
 
         public static String toLink(String tpl, PostSummary ps) {
             Map<String, String> map = new HashMap<>();
-            map.put("tabs1", tabs(2));
-            map.put("tabs2", tabs(3));
-            map.put("tabs3", tabs(4));
-            map.put("tabs4", tabs(4));
-            map.put("tabs5", tabs(3));
-            map.put("tabs6", tabs(2));
             map.put("ps.url", ps.getUrl());
             map.put("ps.title", ps.getTitle());
             map.put("datetime", dfIso.format(ps.getDate()));
