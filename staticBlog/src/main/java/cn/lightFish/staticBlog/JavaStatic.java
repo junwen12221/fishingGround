@@ -64,7 +64,9 @@ public final class JavaStatic {
         Set<File> pointFile = new HashSet<>();
         Tree.transform(newPath.toFile(), tree, pointFile);
         StringBuilder content = new StringBuilder();
-        tree.toJsonWithDirectory(content, (stringBuilder, file) -> content.append(file.getName().replace(".md", ".html")));
+        tree.toJsonWithDirectory(content, (stringBuilder, file) -> {
+            content.append(file.getName().replace(".md", ".html"));
+        });
         Files.write(targetPath.resolve("content.js"), content.toString().getBytes(StandardCharsets.UTF_8));
 
         Map<String, String> indexMap = new HashMap<>(2);

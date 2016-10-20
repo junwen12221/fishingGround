@@ -19,54 +19,6 @@ class Tree {
         this.top = top;
     }
 
-    public void toJsonWithDirectory(StringBuilder s, BiConsumer<StringBuilder, File> fileNameFun) {
-        s.append("{").append("\"name\":").append("\"");
-        fileNameFun.accept(s, file);
-        if (top != null) {
-            s.append("\",\"top\":\"");
-            fileNameFun.accept(s, top.file);
-            s.append("\"");
-        }
-        if (children == null) {
-            s.append("}");
-        } else {
-            s.append(",\"children\": [");
-            if (children.size() != 0) {
-                int i = 0;
-                for (; i < (children.size() - 1); ++i) {
-                    children.get(i).toJsonWithDirectory(s, fileNameFun);
-                    s.append(",\n");
-                }
-                children.get(i).toJsonWithDirectory(s, fileNameFun);
-            }
-            s.append("]}");
-        }
-    }
-
-    public void toJsonWithDirectory(StringBuilder s, BiConsumer<StringBuilder, File> fileNameFun) {
-        s.append("{").append("\"name\":").append("\"");
-        fileNameFun.accept(s, file);
-        if (top != null) {
-            s.append("\",\"top\":\"");
-            fileNameFun.accept(s, top.file);
-            s.append("\"");
-        }
-        if (children == null) {
-            s.append("}");
-        } else {
-            s.append(",\"children\": [");
-            if (children.size() != 0) {
-                int i = 0;
-                for (; i < (children.size() - 1); ++i) {
-                    children.get(i).toJsonWithDirectory(s, fileNameFun);
-                    s.append(",\n");
-                }
-                children.get(i).toJsonWithDirectory(s, fileNameFun);
-            }
-            s.append("]}");
-        }
-    }
-
     public static void transform(File f, Tree tree, Set<File> pointDir) {
         File[] childs = f.listFiles();
         if (childs == null) return;
@@ -79,6 +31,30 @@ class Tree {
                 tree.children.add(new Tree(it, tree));
                 pointDir.add(it.getParentFile());
             }
+        }
+    }
+
+    public void toJsonWithDirectory(StringBuilder s, BiConsumer<StringBuilder, File> fileNameFun) {
+        s.append("{").append("\"name\":").append("\"");
+        fileNameFun.accept(s, file);
+        if (top != null) {
+            s.append("\",\"top\":\"");
+            fileNameFun.accept(s, top.file);
+            s.append("\"");
+        }
+        if (children == null) {
+            s.append("}");
+        } else {
+            s.append(",\"children\": [");
+            if (children.size() != 0) {
+                int i = 0;
+                for (; i < (children.size() - 1); ++i) {
+                    children.get(i).toJsonWithDirectory(s, fileNameFun);
+                    s.append(",\n");
+                }
+                children.get(i).toJsonWithDirectory(s, fileNameFun);
+            }
+            s.append("]}");
         }
     }
 }
