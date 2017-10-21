@@ -29,36 +29,36 @@ public final class JavaStatic {
     static String linkSeparator = "<br/>\n";
 
     public static void main(String[] args) throws Exception {
-        val options = validateArgs(args);
+        String[] options = validateArgs(args);
         if (options.length == 0) return;
-        val path = options[0];
-        val source = options[1];
-        val target = options[2];
+        String path = options[0];
+        String source = options[1];
+        String target = options[2];
 
-        val newPath = Paths.get(path, "new");
+        Path newPath = Paths.get(path, "new");
         requireFolder(newPath);
         validateFileNames(newPath);
-        val sourcePath = Paths.get(path, source);
+        Path sourcePath = Paths.get(path, source);
         requireFolder(sourcePath);
 
-        val sourcePostsPath = sourcePath.resolve("posts");
+        Path sourcePostsPath = sourcePath.resolve("posts");
         createFolderIfNotExists(sourcePostsPath);
-        val targetPath = Paths.get(path, target);
+        Path targetPath = Paths.get(path, target);
         createFolderIfNotExists(targetPath);
 
-        val headerPath = sourcePath.resolve("header.html");
+        Path headerPath = sourcePath.resolve("header.html");
         requireFile(headerPath);
-        val footerPath = sourcePath.resolve("footer.html");
+        Path footerPath = sourcePath.resolve("footer.html");
         requireFile(footerPath);
-        val linkPath = sourcePath.resolve("link.html");
+        Path linkPath = sourcePath.resolve("link.html");
         requireFile(linkPath);
 
         init(sourcePath);
         Map<String, String> map = new HashMap<>();
         map.put("host", host);
-        val header = simpleTemplate(stringFromFile(headerPath), map);
-        val footer = simpleTemplate(stringFromFile(footerPath), map);
-        val link = stringFromFile(linkPath);
+        String header = simpleTemplate(stringFromFile(headerPath), map);
+        String footer = simpleTemplate(stringFromFile(footerPath), map);
+        String link = stringFromFile(linkPath);
 
         Tree tree = new Tree(sourcePath.toFile(), null);
         Set<File> pointFile = new HashSet<>();
@@ -128,25 +128,25 @@ public final class JavaStatic {
     }
 
     static void validateFileNames(Path folderPath) throws IOException {
-        val expected = "Some-blog-post-name-<yyyy-MM-dd-HH-mm>.md";
-        val example = "Your-wise-blog-post-name-2015-07-15-00-45.md";
-        for (val path : Files.newDirectoryStream(folderPath, (p) -> (!Files.isDirectory(p)) && (!p.startsWith(".")))) {
-            val fileName = Objects.requireNonNull(path.getFileName()).toString();
-            val fileNamePieces = fileName.split("\\.");
-            val errMsg = String.format("File name '%s' does not match the expected format " + "'%s' - e.g. '%s'", fileName, expected, example);
+        String expected = "Some-blog-post-name-<yyyy-MM-dd-HH-mm>.md";
+        String example = "Your-wise-blog-post-name-2015-07-15-00-45.md";
+        for (Path path : Files.newDirectoryStream(folderPath, (p) -> (!Files.isDirectory(p)) && (!p.startsWith(".")))) {
+            String fileName = Objects.requireNonNull(path.getFileName()).toString();
+            String[] fileNamePieces = fileName.split("\\.");
+            String errMsg = String.format("File name '%s' does not match the expected format " + "'%s' - e.g. '%s'", fileName, expected, example);
             check(fileNamePieces.length == 2, errMsg);
             check(fileNamePieces[0].split("-").length > 5, errMsg);
         }
     }
 
     static PostSummary fileNameToPostSummary(String path, String fileName) {
-        val fileNameNoExt = fileName.split("\\.")[0];
-        val url = "".equals(path) ? fileNameNoExt + ".html" : path + "/" + fileNameNoExt + ".html";
-        val fileNamePiecesNoExt = fileNameNoExt.split("-");
-        val fileNameNoDate = Arrays.copyOf(fileNamePiecesNoExt, fileNamePiecesNoExt.length - 5);
-        val title = String.join(" ", fileNameNoDate);
-        val maxi = fileNamePiecesNoExt.length - 1;
-        val date = LocalDateTime.of(
+        String fileNameNoExt = fileName.split("\\.")[0];
+        String url = "".equals(path) ? fileNameNoExt + ".html" : path + "/" + fileNameNoExt + ".html";
+        String[] fileNamePiecesNoExt = fileNameNoExt.split("-");
+        String[] fileNameNoDate = Arrays.copyOf(fileNamePiecesNoExt, fileNamePiecesNoExt.length - 5);
+        String title = String.join(" ", fileNameNoDate);
+        int maxi = fileNamePiecesNoExt.length - 1;
+        LocalDateTime date = LocalDateTime.of(
                 Integer.parseInt(fileNamePiecesNoExt[maxi - 4]),
                 Integer.parseInt(fileNamePiecesNoExt[maxi - 3]),
                 Integer.parseInt(fileNamePiecesNoExt[maxi - 2]),
@@ -186,11 +186,11 @@ public final class JavaStatic {
     }
 
     static void renderNewPosts(Path newPath, Path sourcePostsPath, Path targetPath, String header, String footer) throws Exception {
-        for (val newSrcFile : Files.newDirectoryStream(newPath, (p) -> (!Files.isDirectory(p)))) {
-            val html = render(newSrcFile, header, footer);
-            val srcFileName = Objects.requireNonNull(newSrcFile.getFileName()).toString();
-            val array = srcFileName.split("\\.");
-            val destFileName = Paths.get(array[0].concat(".html"));
+        for (Path newSrcFile : Files.newDirectoryStream(newPath, (p) -> (!Files.isDirectory(p)))) {
+            String html = render(newSrcFile, header, footer);
+            String srcFileName = Objects.requireNonNull(newSrcFile.getFileName()).toString();
+            String[] array = srcFileName.split("\\.");
+            Path destFileName = Paths.get(array[0].concat(".html"));
             Path relativizePath = targetPath.relativize(newPath);
             int count = relativizePath.getNameCount();
             if ((count >= 3)) {// ../../new
@@ -207,8 +207,8 @@ public final class JavaStatic {
 
     static String render(Path srcFilePath, String header, String footer) throws Exception {
         out.format("%nRendering %s ...%n", srcFilePath);
-        val markdown = stringFromFile(srcFilePath);
-        val html = markdownToHtml.apply(markdown);
+        String markdown = stringFromFile(srcFilePath);
+        String html = markdownToHtml.apply(markdown);
         return header + "\n" + html + "\n" + footer;
     }
 

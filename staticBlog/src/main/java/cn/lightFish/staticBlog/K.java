@@ -32,8 +32,8 @@ public final class K {
     }
 
     public static void requireFile(Path requiredFile, boolean mustBeFolder) {
-        val isFolder = Files.isDirectory(requiredFile);
-        val folderOrFile = mustBeFolder ? "folder" : "file";
+        boolean isFolder = Files.isDirectory(requiredFile);
+        String folderOrFile = mustBeFolder ? "folder" : "file";
         check(Files.exists(requiredFile) && ((mustBeFolder) == isFolder), String.format("%s does not exist or is not a %s", requiredFile, folderOrFile));
     }
 
@@ -57,8 +57,8 @@ public final class K {
     }
 
     public static void copyFiles(Path srcFolderPath, Path destFolderPath, final Set<Path> excludeFiles) throws Exception {
-        for (val file : Files.newDirectoryStream(srcFolderPath, (p) -> !excludeFiles.contains(p) && !Files.isDirectory(p))) {
-            val destFile = destFolderPath.resolve(file.getFileName());
+        for (Path file : Files.newDirectoryStream(srcFolderPath, (p) -> !excludeFiles.contains(p) && !Files.isDirectory(p))) {
+            Path destFile = destFolderPath.resolve(file.getFileName());
             out.format("Copying %s to %s ...%n", file.toString(), destFile.toString());
             Files.copy(file, destFile, StandardCopyOption.REPLACE_EXISTING);
         }
